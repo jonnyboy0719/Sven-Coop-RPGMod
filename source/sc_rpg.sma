@@ -47,13 +47,13 @@
 #define SND_JUMP_LAND_CACHE			"sc_rpg/jump_land.wav"
 
 // Power Names
-#define AB_HEALTH					"Strength"
+#define AB_HEALTH					"Vitality"
 #define AB_ARMOR					"Superior Armor"
 #define AB_HEALTH_REGEN				"Health Regeneration"
 #define AB_ARMOR_REGEN				"Nano Armor"
 #define AB_AMMO						"The Magic Pocket"
 #define AB_DOUBLEJUMP				"Icarus Potion"
-#define AB_WEAPON					"The Gift From The Gods"
+#define AB_WEAPON					"A Gift From The Gods"
 #define AB_AURA						"The Warrior's Battlecry"
 #define AB_HOLYGUARD				"Holy Armor"
 
@@ -72,7 +72,7 @@
 // Plugin
 #define PLUGIN						"Sven Co-op RPG Mod"
 #define AUTHOR						"JonnyBoy0719"
-#define VERSION						"20.1"
+#define VERSION						"20.2"
 
 // Adverts
 #define AdvertSetup_Max				10
@@ -206,7 +206,6 @@ public plugin_init()
 	mysqlx_type = register_cvar ("rpg_type", "mysql"); // The password from the db type
 	mysqlx_db = register_cvar ("rpg_dbname", "sc_rpg"); // The database name
 	register_cvar ("rpg_table", "rpg_stats"); // The table where it will save the information
-	register_cvar ("rpg_table_rewards", "rpg_rewards"); // The table where it will save the information
 	register_cvar ("rpg_rank_table", "rpg_ranks"); // The table where it will save the information
 	register_cvar ("rpg_gameinfo", "1"); // This will enable GameInformation to be overwritten.
 	setranking = register_cvar ("rpg_ranking", "1"); // This will enable ranking, or simply disable it.
@@ -1047,13 +1046,6 @@ public EVENT_PlayerDeath()
 
 	stats_doublejump_temp[victim] = 0;
 
-	// If the player has died, lets save his stuff first.
-	if (!is_user_bot(victim) && !is_user_hltv(victim))
-	{
-		new auth[33];
-		get_user_authid(victim, auth, 32);
-		SaveLevel(victim, auth);
-	}
 	return PLUGIN_CONTINUE
 }
 
@@ -1140,8 +1132,6 @@ public client_putinserver(id)
 	if ( !HasLoadedStats[id] )
 		CreateStats(id, auth);
 
-	// Lets load the user's level (will only show if the user has its stats created)
-	LoadLevel(id, auth);
 	set_task(2.0, "ShowInfo", id)
 
 	return PLUGIN_CONTINUE;
@@ -3032,7 +3022,7 @@ LoadLevel(id, auth[], LoadMyStats = true)
 	}
 
 	// This will read the player LVL and then give him the title he needs
-	new Handle:query2 = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE `lvl` = %d", table2, stats_level[id])
+	new Handle:query2 = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE `lvl` <= (%d) and `lvl` ORDER BY abs(`lvl` - %d) LIMIT 1", table2, stats_level[id], stats_level[id])
 	if (!SQL_Execute(query2))
 	{
 		server_print("query not loaded [query2]")
