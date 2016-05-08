@@ -72,7 +72,7 @@
 // Plugin
 #define PLUGIN						"Sven Co-op RPG Mod"
 #define AUTHOR						"JonnyBoy0719"
-#define VERSION						"20.2"
+#define VERSION						"20.4"
 
 // Adverts
 #define AdvertSetup_Max				10
@@ -88,13 +88,15 @@ new ShouldFullReset[33],
 	lastDeadflag[33],
 	bool:FirstTimeJoining[33],
 	bool:HasSpawned[33],
-	bool:HasLoadedStats[33],
-	bool:enable_ranking = false
+	bool:enable_ranking = false,
+	Handle:sql_db,
+	sql_query_cache[1024];
 
 // Stats
 new stats_increment[33],
 	stats_xp[33],
 	stats_xp_cap[33],
+	stats_xp_temp[33],	// Used only for the stats_xp_cap
 	stats_xp_bonus[33],
 	stats_neededxp[33],
 	stats_level[33] = -1,
@@ -188,11 +190,15 @@ public plugin_init()
 	register_concmd("selectskill","RPGSkill",0,"- Opens the Skill Choice Menu, if you have Skillpoints available");
 	register_concmd("rpg_skillinfo", "CVAR_SkillsInfo", 0, "Prints the info about the skills")
 	register_concmd("skillsinfo", "CVAR_SkillsInfo", 0, "Prints the info about the skills")
+	register_concmd("challenges", "CVAR_Challenges", 0, "Prints the challenges")
+	register_concmd("rpg_commands", "CVAR_CMMNDS", 0, "Prints the available commands")
 
 	// Sets the stuff
-	register_concmd("rpg_exp_bonus", "CVAR_SetEXPBonus", ADMIN_RCON, "[amount]")
+	register_concmd("rpg_exp_bonus", "CVAR_SetEXPBonus", ADMIN_RCON, "[amount] [0|1]")
 	register_concmd("rpg_set_level", "CVAR_SetStatsLevel", ADMIN_RCON, "<name or #userid> [amount]")
 	register_concmd("rpg_set_prestige", "CVAR_SetStatsPrestige", ADMIN_RCON, "<name or #userid> [amount]")
+	register_concmd("rpg_skill_gift", "CVAR_Skill_GiftFromTheGods", ADMIN_RCON, "<name or #userid>")
+	register_concmd("rpg_reloadblacklist", "CVAR_ReloadBlacklist", ADMIN_RCON, "Reloads the blacklist")
 
 	register_concmd("grenade", "hook_grenade")
 	register_concmd("medic", "hook_medic")
@@ -248,17 +254,9 @@ public plugin_init()
 			RewardsInfo[ m_iReward ][ _Max_Value ]
 			);
 	}
-}
-
-//------------------
-//	engine_changelevel()
-//------------------
-
-public engine_changelevel()
-{
-	// Disable everything before we change map!
-	// Incase someone tries to join @ map change (frame perfect), and crashes the server (This can only happen on SC 5.x, and will most likely crash anyway due to bad programming and obselete code...)
-	glb_MapDefined_IsDisabled = true;
+	
+	// Lets delay the connection
+	set_task( 0.3, "SQL_Init" );
 }
 
 //------------------
@@ -267,6 +265,9 @@ public engine_changelevel()
 
 public plugin_end()
 {
+	if ( sql_db )
+		SQL_FreeHandle( sql_db );
+	
 	sqlv_close( VaultHandle );
 
 	new TotalRewards = ArraySize( Reward );
@@ -275,7 +276,6 @@ public plugin_end()
 	for( new Index = 0; Index < TotalRewards; Index++ )
 	{
 		ArrayGetArray( Reward, Index, RewardData );
-
 		ArrayDestroy( RewardData[ _Data ] );
 	}
 
@@ -321,9 +321,71 @@ public CVAR_SkillsInfo(id)
 	client_print(id, print_console, "9. %s:^n   Gives you temporarily god mode, use it while it lasts!", AB_HOLYGUARD);
 	client_print(id, print_console, "   (Can be activated when pressing the 'medic' button)^n");
 	client_print(id, print_console, "Special - Medals:^n   Given from completing hard or 'special' rewards.^n");
-	client_print(id, print_console, "Special - Prestige:^n   When on max level, you can reset your level back to zero, but you gain more EXP & rewards.");
+	client_print(id, print_console, "Special - Prestige:^n   When on max level, you can reset your level back to zero,");
+	client_print(id, print_console, "   but you gain more EXP & rewards.");
 	client_print(id, print_console, "===================================================================");
 	client_print(id, print_chat, "Skill information has been printed on the console!")
+}
+
+//------------------
+//	CVAR_Challenges()
+//------------------
+
+public CVAR_Challenges(id)
+{
+	new steamid[35],
+		Challenges_total = 0,
+		Challenges_count = 0;
+	get_user_authid(id, steamid, charsmax(steamid))
+
+	client_print(id, print_console, "===================================================================");
+	client_print(id, print_console, "Challenges");
+	client_print(id, print_console, "===================================================================");
+	
+	for( new m_iReward; m_iReward < Rewards; m_iReward++ )
+	{
+		Challenges_total++;
+		RewardsData[ m_iReward ][ id ] = GetRewardData(steamid, RewardsInfo[ m_iReward ][ _Save_Name ]);
+		
+		if( GetClientRewardStatus( RewardsPointer[ m_iReward ], RewardsData[ m_iReward ][ id ] ) == _In_Progress )
+			client_print(id, print_console, "%s (%d/%d):^n   %s^n", RewardsInfo[ m_iReward ][ _Name ], RewardsData[ m_iReward ][ id ], RewardsInfo[ m_iReward ][ _Max_Value ], RewardsInfo[ m_iReward ][ _Description ]);
+		else
+		{
+			Challenges_count++;
+			client_print(id, print_console, "%s (Completed):^n   %s^n", RewardsInfo[ m_iReward ][ _Name ], RewardsInfo[ m_iReward ][ _Description ]);
+		}
+	}
+	
+	if (Challenges_count >= Challenges_total)
+		client_print(id, print_console, "Progress:^n   All %d challenges has been completed!", Challenges_total);
+	else
+		client_print(id, print_console, "Progress:^n   You have completed %d out of %d challenges.", Challenges_count, Challenges_total);
+	client_print(id, print_console, "===================================================================");
+	client_print(id, print_chat, "The challenges has been printed on the console!")
+}
+
+//------------------
+//	CVAR_CMMNDS()
+//------------------
+
+public CVAR_CMMNDS(id)
+{
+	client_print(id, print_console, "===================================================================");
+	client_print(id, print_console, "RPG Mod Commands");
+	client_print(id, print_console, "===================================================================");
+	if(is_user_admin(id))
+	{
+		client_print(id, print_console, "rpg_exp_bonus [amount] [0|1]^n   This will set an extra amount of EXP you will gain per frag.^n");
+		client_print(id, print_console, "rpg_set_level <name or #userid> [amount]^n   This will set the level of a user (and reset their skills).^n");
+		client_print(id, print_console, "rpg_set_prestige <name or #userid> [amount]^n   This will set the prestige level of a user.^n");
+		client_print(id, print_console, "rpg_skill_gift <name or #userid>^n   This will forcefully use the skill %s on the user,", AB_WEAPON);
+		client_print(id, print_console, "   even if the player doesn't have it.^n");
+		client_print(id, print_console, "rpg_reloadblacklist^n   This will reload the whole blacklist.");
+	}
+	else
+		client_print(id, print_console, "ERROR^n   You do not have access for these commands.");
+	client_print(id, print_console, "===================================================================");
+	client_print(id, print_chat, "The commands has been printed on the console!")
 }
 
 //------------------
@@ -349,24 +411,24 @@ public CVAR_SetEXPBonus(id, level, cid)
 	if (str_to_num(arg2) == 0)
 	{
 		if (SetExtraBonus == 0)
-			client_print(id, print_chat, "Extra XP is now active, current amount: (+%sXP)", arg2);
-		else if(str_to_num(arg2) <= 0 && SetExtraBonus > 0)
+			client_print(id, print_chat, "Extra XP is now active, current amount: (+%dXP)", str_to_num(arg));
+		else if(str_to_num(arg) <= 0 && SetExtraBonus > 0)
 			client_print(id, print_chat, "Extra XP has been turned off");
 		else
-			client_print(id, print_chat, "Extra XP was changed from (+%sXP) to (+%sXP)!", SetExtraBonus, arg2);
+			client_print(id, print_chat, "Extra XP was changed from (+%dXP) to (+%dXP)!", SetExtraBonus, str_to_num(arg));
 	}
 	else if (str_to_num(arg2) == 1)
 	{
 		if (SetExtraBonus == 0)
-			client_print(0, print_chat, "Extra XP Bonus Event is now active! (+%sXP)", arg2);
-		else if(str_to_num(arg2) <= 0 && SetExtraBonus > 0)
+			client_print(0, print_chat, "Extra XP Bonus Event is now active! (+%dXP)", str_to_num(arg));
+		else if(str_to_num(arg) <= 0 && SetExtraBonus > 0)
 			client_print(0, print_chat, "Extra XP Bonus Event is now over!");
 		else
-			client_print(0, print_chat, "Extra XP Bonus has changed from (+%sXP) to (+%sXP)!", SetExtraBonus, arg2);
+			client_print(0, print_chat, "Extra XP Bonus has changed from (+%dXP) to (+%dXP)!", SetExtraBonus, str_to_num(arg));
 	}
 	else
 	{
-		client_print(id, print_console, "[RPG MOD] %s is not valid! The valid types are the following:", str_to_num(arg2))
+		client_print(id, print_console, "[RPG MOD] %d is not valid! The valid types are the following:", str_to_num(arg2))
 		client_print(id, print_console, "[RPG MOD] 0 = Will only show the changes for you (default)")
 		client_print(id, print_console, "[RPG MOD] 1 = Will display for everyone on the server")
 		return PLUGIN_HANDLED
@@ -407,16 +469,16 @@ public CVAR_SetStatsLevel(id, level, cid)
 		name[32],
 		name2[32]
 
-	stats_health_set[id] = 0
-	stats_armor_set[id] = 0
-	stats_health[id] = 0
-	stats_armor[id] = 0
-	stats_ammo[id] = 0
-	stats_doublejump[id] = 0
-	stats_randomweapon[id] = 0
-	stats_auro[id] = 0
-	stats_holyguard[id] = 0
-	stats_xp[id] = 0
+	stats_health_set[player] = 0
+	stats_armor_set[player] = 0
+	stats_health[player] = 0
+	stats_armor[player] = 0
+	stats_ammo[player] = 0
+	stats_doublejump[player] = 0
+	stats_randomweapon[player] = 0
+	stats_auro[player] = 0
+	stats_holyguard[player] = 0
+	stats_xp[player] = 0
 
 	get_user_authid(id, authid, 31)
 	get_user_authid(player, authid2, 31)
@@ -438,6 +500,67 @@ public CVAR_SetStatsLevel(id, level, cid)
 	SaveLevel(player, authid2)
 
 	log_amx("RPG MOD CMD: ^"%s<%d><%s><>^" set ^"%s<%d><%s><>^" level to %s", name, get_user_userid(id), authid, name2, get_user_userid(player), authid2, arg2)
+
+	return PLUGIN_HANDLED
+}
+
+//------------------
+//	CVAR_Skill_GiftFromTheGods()
+//------------------
+
+public CVAR_Skill_GiftFromTheGods(id, level, cid)
+{
+	if (!cmd_access(id, level, cid, 2))
+		return PLUGIN_HANDLED
+
+	new arg[32]
+
+	read_argv(1, arg, 31)
+	new player = cmd_target(id, arg, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF)
+
+	if (!player)
+	{
+		client_print(id, print_console, "Player ^"%s^" was not found!", arg)
+		return PLUGIN_HANDLED
+	}
+
+	new authid[32],
+		authid2[32],
+		name[32],
+		name2[32]
+
+	get_user_authid(id, authid, 31)
+	get_user_authid(player, authid2, 31)
+	get_user_name(id, name, 31)
+	get_user_name(player, name2, 31)
+
+	ObtainWeapon_Find(player)
+
+	log_amx("RPG MOD CMD: ^"%s<%d><%s><>^" forcefully used the skills %s on ^"%s<%d><%s><>^"", name, get_user_userid(id), authid, AB_WEAPON, name2, get_user_userid(player), authid2)
+
+	return PLUGIN_HANDLED
+}
+
+//------------------
+//	CVAR_ReloadBlacklist()
+//------------------
+
+public CVAR_ReloadBlacklist(id, level, cid)
+{
+	if (!cmd_access(id, level, cid, 2))
+		return PLUGIN_HANDLED
+
+	new authid[32],
+		name[32]
+
+	get_user_authid(id, authid, 31)
+	get_user_name(id, name, 31)
+
+	CheckIfBlacklisted();
+
+	client_print(id, print_console, "The blacklist has been reloaded!")
+
+	log_amx("RPG MOD CMD: ^"%s<%d><%s><>^" reloaded the blacklist", name, get_user_userid(id), authid)
 
 	return PLUGIN_HANDLED
 }
@@ -483,6 +606,8 @@ public CVAR_SetStatsPrestige(id, level, cid)
 		setvalue = str_to_num(arg2)
 
 	stats_prestige[player] = setvalue;
+	
+	SaveLevel(player, authid2)
 
 	log_amx("RPG MOD CMD: ^"%s<%d><%s><>^" set ^"%s<%d><%s><>^" prestige to %s", name, get_user_userid(id), authid, name2, get_user_userid(player), authid2, arg2)
 
@@ -576,6 +701,23 @@ public hook_medic(id)
 	if(stats_holyguard_wait[id] <= 0)
 	{
 		client_cmd(id, "spk ^"%s^"", SND_HOLYGUARD)
+
+		new steamid[35];
+		get_user_authid(id, steamid, charsmax(steamid))
+
+		if(GetClientRewardStatus(RewardsPointer[ _GodsDoing ], RewardsData[ _GodsDoing ][ id ]) == _In_Progress)
+		{
+			RewardsData[ _GodsDoing ][ id ]++;
+			SetRewardData( steamid, RewardsInfo[ _GodsDoing ][ _Save_Name ], RewardsData[ _GodsDoing ][ id ] );
+
+			// check if client just unlocked the achievement
+			if(GetClientRewardStatus(RewardsPointer[ _GodsDoing ], RewardsData[ _GodsDoing ][ id ]) == _Unlocked)
+			{
+				stats_xp[id] = stats_xp[id] + RewardsInfo[ _GodsDoing ][ _ExpGain ];
+				stats_medals[id] = stats_medals[id] + RewardsInfo[ _GodsDoing ][ _Medals ];
+				ClientRewardCompleted( id, RewardsPointer[ _GodsDoing ], .Announce = true );
+			}
+		}
 
 		new r = 140,
 			g = 255,
@@ -1128,10 +1270,6 @@ public client_putinserver(id)
 	new auth[33];
 	get_user_authid( id, auth, 32);
 
-	// Creates the stats, if it already exists, it will skip it.
-	if ( !HasLoadedStats[id] )
-		CreateStats(id, auth);
-
 	set_task(2.0, "ShowInfo", id)
 
 	return PLUGIN_CONTINUE;
@@ -1196,40 +1334,19 @@ public StatsVersion(id)
 
 GetCurrentRankTitle(id)
 {
-	new error[128], errno
-	new Handle:info = MySQLx_Init()
-	new Handle:sql = SQL_Connect(info, errno, error, 127)
-
-	if (sql == Empty_Handle)
-	{
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", error)
-	}
-
-	new table[32]
-
+	new table[32],
+		send_id[1];
+	send_id[0] = id;
 	get_cvar_string("rpg_rank_table", table, 31)
-
-	// This will read the player LVL and then give him the title he needs
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE `lvl` <= (%d) and `lvl` ORDER BY abs(`lvl` - %d) LIMIT 1", table, stats_level[id], stats_level[id])
-	if (!SQL_Execute(query))
-	{
-		server_print("query not loaded [title]")
-		SQL_QueryError(query, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else {
-		while (SQL_MoreResults(query))
-		{
-			new ranktitle[185]
-			SQL_ReadResult(query, 1, ranktitle, 31)
-			top_rank = rank_max
-			rank_name[id] = ranktitle;
-			SQL_NextRow(query);
-		}
-	}
-	SQL_FreeHandle(query);
-	SQL_FreeHandle(sql);
-	SQL_FreeHandle(info);
-	return 0;
+	formatex(
+		sql_query_cache,
+		1023,
+		"SELECT * FROM `%s` WHERE `lvl` <= (%d) and `lvl` ORDER BY abs(`lvl` - %d) LIMIT 1",
+		table,
+		stats_level[id],
+		stats_level[id]
+	)
+	SQL_ThreadQuery( sql_db, "QueryRankTitle", sql_query_cache, send_id );
 }
 
 //------------------
@@ -1238,8 +1355,7 @@ GetCurrentRankTitle(id)
 
 public ShowMyRank(id)
 {
-	new Position = GetPosition(id);
-	ply_rank[id] = Position;
+	GetPosition(id);
 	// Lets call the GetCurrentRankTitle(id) to make sure we get the title for the player
 	GetCurrentRankTitle(id);
 	new auth[33], formated_text[501];
@@ -1299,30 +1415,45 @@ public Prestige(id)
 	new steamid[35];
 	get_user_authid(id, steamid, charsmax(steamid))
 
-	if(GetClientRewardStatus(RewardsPointer[ _Prestige_1 ], RewardsData[ id ][ _Prestige_1 ]) == _In_Progress)
+	if(GetClientRewardStatus(RewardsPointer[ _Prestige_1 ], RewardsData[ _Prestige_1 ][ id ]) == _In_Progress)
 	{
-		RewardsData[ id ][ _Prestige_1 ]++;
-		SetRewardData( steamid, RewardsInfo[ _Prestige_1 ][ _Save_Name ], RewardsData[ id ][ _Prestige_1 ] );
+		RewardsData[ _Prestige_1 ][ id ]++;
+		SetRewardData( steamid, RewardsInfo[ _Prestige_1 ][ _Save_Name ], RewardsData[ _Prestige_1 ][ id ] );
 
 		// check if client just unlocked the achievement
-		if(GetClientRewardStatus(RewardsPointer[ _Prestige_1 ], RewardsData[ id ][ _Prestige_1 ]) == _Unlocked)
+		if(GetClientRewardStatus(RewardsPointer[ _Prestige_1 ], RewardsData[ _Prestige_1 ][ id ]) == _Unlocked)
 		{
-			stats_xp[id] = stats_xp[id] + 500;
-			stats_medals[id] = stats_medals[id] + 1;
+			stats_xp[id] = stats_xp[id] + RewardsInfo[ _Prestige_1 ][ _ExpGain ];
+			stats_medals[id] = stats_medals[id] + RewardsInfo[ _Prestige_1 ][ _Medals ];
 			ClientRewardCompleted( id, RewardsPointer[ _Prestige_1 ], .Announce = true );
 		}
 	}
-
-	if(GetClientRewardStatus(RewardsPointer[ _Prestige_2 ], RewardsData[ id ][ _Prestige_2 ]) == _In_Progress)
+	
+	if(GetClientRewardStatus(RewardsPointer[ _Prestige_LJ ], RewardsData[ _Prestige_LJ ][ id ]) == _In_Progress)
 	{
-		RewardsData[ id ][ _Prestige_2 ]++;
-		SetRewardData( steamid, RewardsInfo[ _Prestige_2 ][ _Save_Name ], RewardsData[ id ][ _Prestige_2 ] );
+		RewardsData[ _Prestige_LJ ][ id ]++;
+		SetRewardData( steamid, RewardsInfo[ _Prestige_LJ ][ _Save_Name ], RewardsData[ _Prestige_LJ ][ id ] );
 
 		// check if client just unlocked the achievement
-		if(GetClientRewardStatus(RewardsPointer[ _Prestige_2 ], RewardsData[ id ][ _Prestige_2 ]) == _Unlocked)
+		if(GetClientRewardStatus(RewardsPointer[ _Prestige_LJ ], RewardsData[ _Prestige_LJ ][ id ]) == _Unlocked)
 		{
-			stats_xp[id] = stats_xp[id] + 9500;
-			stats_medals[id] = stats_medals[id] + 2;
+			stats_xp[id] = stats_xp[id] + RewardsInfo[ _Prestige_LJ ][ _ExpGain ];
+			stats_medals[id] = stats_medals[id] + RewardsInfo[ _Prestige_LJ ][ _Medals ];
+			give_item(id,"item_longjump")
+			ClientRewardCompleted( id, RewardsPointer[ _Prestige_LJ ], .Announce = true );
+		}
+	}
+
+	if(GetClientRewardStatus(RewardsPointer[ _Prestige_2 ], RewardsData[ _Prestige_2 ][ id ]) == _In_Progress)
+	{
+		RewardsData[ _Prestige_2 ][ id ]++;
+		SetRewardData( steamid, RewardsInfo[ _Prestige_2 ][ _Save_Name ], RewardsData[ _Prestige_2 ][ id ] );
+
+		// check if client just unlocked the achievement
+		if(GetClientRewardStatus(RewardsPointer[ _Prestige_2 ], RewardsData[ _Prestige_2 ][ id ]) == _Unlocked)
+		{
+			stats_xp[id] = stats_xp[id] + RewardsInfo[ _Prestige_2 ][ _ExpGain ];
+			stats_medals[id] = stats_medals[id] + RewardsInfo[ _Prestige_2 ][ _Medals ];
 			ClientRewardCompleted( id, RewardsPointer[ _Prestige_2 ], .Announce = true );
 		}
 	}
@@ -1467,6 +1598,7 @@ public BBHelp(id, ShowCommands)
 		client_print ( id, print_console, "/prestige		--		If on max level, you will reset to level 0, but gain some new cool shit." )
 		client_print ( id, print_console, "/reset			--		Resets your stats (Points only)" )
 		client_print ( id, print_console, "/fullreset		--		Full Reset of your stats" )
+		client_print ( id, print_console, "/challenges		--		Shows your challange progress" )
 		client_print ( id, print_console, "/skills			--		Set your skillpoints" )
 		client_print ( id, print_console, "/skillsinfo		--		Grabs all the information of what the skills do (will print all info on the console!)" )
 		if ( enable_ranking )
@@ -1479,9 +1611,9 @@ public BBHelp(id, ShowCommands)
 	else
 	{
 		if ( enable_ranking )
-			client_print ( id, print_chat, "Available commands: /version /rank /top10 /reset /fullreset /prestige /skills" )
+			client_print ( id, print_chat, "Available commands: /version /rank /top10 /reset /fullreset /prestige /skills /challenges" )
 		else
-			client_print ( id, print_chat, "Available commands: /version /reset /fullreset /prestige /skills" )
+			client_print ( id, print_chat, "Available commands: /version /reset /fullreset /prestige /skills /challenges" )
 	}
 	return PLUGIN_HANDLED
 }
@@ -1513,6 +1645,16 @@ public hook_say(id)
 		RPGSkill(id)
 	else if (equali(arg1[0], "/skillsinfo"))
 		CVAR_SkillsInfo(id)
+	else if (equali(arg1[0], "/challenges")
+		|| equali(arg1[0], "/rewards")
+		|| equali(arg1[0], "/progress")
+	)
+		CVAR_Challenges(id)
+	else if (equali(arg1[0], "/rpg"))
+	{
+		CVAR_CMMNDS(id)
+		return PLUGIN_HANDLED;
+	}
 
 	if ( enable_ranking )
 	{
@@ -1521,31 +1663,24 @@ public hook_say(id)
 		else if (equali(arg1[0], "/rank"))
 			ShowMyRank(id)
 	}
-	
-	if (is_user_admin(id))
-	{
-		client_print(id, print_console, "arg1 :: %s", arg1[0] )
-		client_print(id, print_console, "I'm Nihilanth's slave! :: %s", arg1[0] )
-	}
 
 	if(equali(arg1[0], "I'm Nihilanth's slave!"))
 	{
-		if (is_user_admin(id))
-			client_print(id, print_console, "Secret!!" )
+		client_print(id, print_console, "Secret!!" )
 		
 		new steamid[35];
 		get_user_authid(id, steamid, charsmax(steamid))
 
-		if(GetClientRewardStatus(RewardsPointer[ _Secret1 ], RewardsData[ id ][ _Secret1 ]) == _In_Progress)
+		if(GetClientRewardStatus(RewardsPointer[ _Secret1 ], RewardsData[ _Secret1 ][ id ]) == _In_Progress)
 		{
-			RewardsData[ id ][ _Secret1 ]++;
-			SetRewardData( steamid, RewardsInfo[ _Secret1 ][ _Save_Name ], RewardsData[ id ][ _Secret1 ] );
+			RewardsData[ _Secret1 ][ id ]++;
+			SetRewardData( steamid, RewardsInfo[ _Secret1 ][ _Save_Name ], RewardsData[ _Secret1 ][ id ] );
 
 			// check if client just unlocked the achievement
-			if(GetClientRewardStatus(RewardsPointer[ _Secret1 ], RewardsData[ id ][ _Secret1 ]) == _Unlocked)
+			if(GetClientRewardStatus(RewardsPointer[ _Secret1 ], RewardsData[ _Secret1 ][ id ]) == _Unlocked)
 			{
-				stats_medals[id] = stats_medals[id] + 1;
-				stats_xp[id] = stats_xp[id] + 800;
+				stats_xp[id] = stats_xp[id] + RewardsInfo[ _Secret1 ][ _ExpGain ];
+				stats_medals[id] = stats_medals[id] + RewardsInfo[ _Secret1 ][ _Medals ];
 				ClientRewardCompleted( id, RewardsPointer[ _Secret1 ], .Announce = true );
 			}
 		}
@@ -1561,68 +1696,18 @@ public hook_say(id)
 
 public ShowTop10(id)
 {
-	static getnum
-
-	// Lets not bug the top10 by adding more when we write /top10
-	getnum = 0
-
-	new menuBody[1515]
-	new len = format(menuBody, 1514, "SC Stats -- Top10^n^n")
-
-	new error[128], errno
-	new Handle:info = MySQLx_Init()
-	new Handle:sql = SQL_Connect(info, errno, error, 127)
-
-	if (sql == Empty_Handle)
-	{
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", error)
-	}
-
 	new table[32],
-		name[33],
-		prestige[33],
-		hasprestiged[33]
-
+		send_id[1];
+	send_id[0] = id;
+	
 	get_cvar_string("rpg_table", table, 31)
-
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT `name`, `lvl`, `medals`, `prestige` FROM `%s` ORDER BY `prestige` DESC, `lvl` + 0 DESC LIMIT 10", table)
-
-	// This is a pretty basic code, get all people from the database.
-	if (!SQL_Execute(query))
-	{
-		server_print("GetPosition not loaded")
-		SQL_QueryError(query, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else {
-		while (SQL_MoreResults(query))
-		{
-			SQL_ReadResult(query, 0, name, 32)
-			SQL_ReadResult(query, 3, prestige, 32)
-
-			if (str_to_num(prestige) > 0)
-				format(hasprestiged, 32, "(%d)", str_to_num(prestige));
-			else
-				hasprestiged = "";
-
-			len += format(
-				menuBody[len],
-				1514-len,
-				"#%d. %s %s^n",
-				++getnum,
-				name,
-				hasprestiged
-			)
-
-			SQL_NextRow(query);
-		}
-	}
-	SQL_FreeHandle(query);
-	SQL_FreeHandle(sql);
-	SQL_FreeHandle(info);
-
-	show_menu(id, getnum, menuBody, 8)
-
-	return PLUGIN_CONTINUE;
+	formatex(
+		sql_query_cache,
+		1023,
+		"SELECT `name`, `lvl`, `medals`, `prestige` FROM `%s` ORDER BY `prestige` DESC, `lvl` + 0 DESC LIMIT 10",
+		table
+	)
+	SQL_ThreadQuery( sql_db, "QueryTop10", sql_query_cache, send_id );
 }
 
 //------------------
@@ -1699,11 +1784,11 @@ public PluginThinkLoop()
 			if (!FirstTimeJoining[id])
 			{
 				FirstTimeJoining[id] = true;
-				PlayerHasSpawned(id);
 				new auth[33];
 				get_user_authid( id, auth, 32);
 				LoadLevel(id, auth)
 				CalculateEXP_Needed(id);
+				PlayerHasSpawned(id);
 			}
 		}
 	}
@@ -1832,16 +1917,16 @@ public IsInRange(id)
 		new steamid[35];
 		get_user_authid(id, steamid, charsmax(steamid))
 
-		if(GetClientRewardStatus(RewardsPointer[ _TeamPlayer ], RewardsData[ id ][ _TeamPlayer ]) == _In_Progress)
+		if(GetClientRewardStatus(RewardsPointer[ _TeamPlayer ], RewardsData[ _TeamPlayer ][ id ]) == _In_Progress)
 		{
-			RewardsData[ id ][ _TeamPlayer ]++;
-			SetRewardData( steamid, RewardsInfo[ _TeamPlayer ][ _Save_Name ], RewardsData[ id ][ _TeamPlayer ] );
+			RewardsData[ _TeamPlayer ][ id ]++;
+			SetRewardData( steamid, RewardsInfo[ _TeamPlayer ][ _Save_Name ], RewardsData[ _TeamPlayer ][ id ] );
 
 			// check if client just unlocked the achievement
-			if(GetClientRewardStatus(RewardsPointer[ _TeamPlayer ], RewardsData[ id ][ _TeamPlayer ]) == _Unlocked)
+			if(GetClientRewardStatus(RewardsPointer[ _TeamPlayer ], RewardsData[ _TeamPlayer ][ id ]) == _Unlocked)
 			{
-				stats_medals[id] = stats_medals[id] + 3;
-				stats_xp[id] = stats_xp[id] + 2500;
+				stats_xp[id] = stats_xp[id] + RewardsInfo[ _TeamPlayer ][ _ExpGain ];
+				stats_medals[id] = stats_medals[id] + RewardsInfo[ _TeamPlayer ][ _Medals ];
 				ClientRewardCompleted( id, RewardsPointer[ _TeamPlayer ], .Announce = true );
 			}
 		}
@@ -1902,9 +1987,9 @@ public RegenSystem(id)
 	if (stats_ammo[id] > 0 && stats_ammo_wait[id] <= 0)
 	{
 		if (glb_MapDefined_AmmoRegen > 0 || glb_MapDefined_AmmoRegen > stats_ammo[id])
-			stats_ammo_wait[id] = glb_MapDefined_AmmoRegen - stats_ammo[id];
+			stats_ammo_wait[id] = glb_MapDefined_AmmoRegen - stats_ammo[id] - stats_prestige[id];
 		else
-			stats_ammo_wait[id] = 65 - stats_ammo[id];
+			stats_ammo_wait[id] = 65 - stats_ammo[id] - stats_prestige[id];
 		ObtainAmmo_Find(id);
 	}
 	else
@@ -1934,7 +2019,8 @@ public ObtainAmmo_Find(id)
 
 	format(configsDir, 63, "%s/sc_rpg/randomammo.ini", configsDir);
 
-	ObtainAmmo_Grab(configsDir, id)
+	// Lets have the weaponid on -1, so it will be random
+	ObtainAmmo_Grab(configsDir, id, 0)
 }
 
 //------------------
@@ -1944,25 +2030,25 @@ public ObtainAmmo_Find(id)
 public ObtainWeapon_Find(id)
 {
 	new configsDir[64],
-		m_iRandomID = 0;
-
-	new m_iSecretKey = random_num(0, 9000000000);
-
-	// Sets the secret key
-	client_cmd(id, ".rpg_mod_skey %d", m_iSecretKey);
-
+		m_iRandomID = 0,
+		bool:bHasWeapon = false,
+		strWeapon[32],
+		strWeapons[32],
+		m_iWeapon = 0,
+		iWeaponNum;
+	
 	get_configsdir(configsDir, 63);
-
+	
 	format(configsDir, 63, "%s/sc_rpg/randomweapon.ini", configsDir);
-
+	
 	if (!file_exists(configsDir))
 	{
 		server_print("[ObtainWeapon_Find] File ^"%s^" doesn't exist.", configsDir)
 		return;
 	}
-
+	
 	new File=fopen(configsDir,"r");
-
+	
 	if (File)
 	{
 		new Text[512],
@@ -1994,30 +2080,74 @@ public ObtainWeapon_Find(id)
 		}
 		fclose(File);
 	}
-
+	
 	new rndnum = random_num(0, m_iRandomID-1);
-
-	client_cmd(id, "spk ^"%s^"", SND_HOLYWEP)
-
-	client_print(id, print_chat, "You have been gifted ^"%s^" by the gods!", rpg_get_weapontitle(g_array[rndnum]))
-
-	// Lets use AngelScript for this part, so we don't spawn weapons on the world...
-	client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
-
-	if (equali(g_array[rndnum], "weapon_tripmine"))
+	
+	/*
+	JonnyBoy0719:
+		get_user_weapons does not work, and will hopefully be replaced with an Angelscript system later on.
+		This code will still be in here, if it will be used for any other goldsrc mod (converting it over to another mod)
+	*/
+	
+	// Check if he has the weapon
+	get_user_weapons(id, strWeapons, iWeaponNum);
+	
+	for (new i = 0; i < iWeaponNum; i++) 
 	{
-		// gives 3 more
-		client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
-		client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
-		client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+		get_weaponname(strWeapons[i], strWeapon,31);
+		
+		if(equali(strWeapon, g_array[rndnum])
+			|| !equali(strWeapon, "weapon_snark")	// We do not want to set this to true, if its 1 of these
+			|| !equali(strWeapon, "weapon_tripmine")
+			|| !equali(strWeapon, "weapon_satchel"))
+		{
+			bHasWeapon = true;
+			m_iWeapon = i;
+		}
 	}
-	else if (equali(g_array[rndnum], "weapon_satchel"))
+	
+	// its true, he has da weapon!
+	if(bHasWeapon)
 	{
-		// gives 4 more
+		new strdir[64];
+		get_configsdir(strdir, 63);
+		
+		format(strdir, 63, "%s/sc_rpg/randomammo.ini", strdir);
+		
+		ObtainAmmo_Grab(strdir, id, m_iWeapon)
+	}
+	else // if false, run this instead!
+	{
+		client_cmd(id, "spk ^"%s^"", SND_HOLYWEP)
+		
+		client_print(id, print_chat, "You have been gifted ^"%s^" by the gods!", rpg_get_weapontitle(g_array[rndnum]))
+		
+		new m_iSecretKey = random_num(0, 9000000000);
+		
+		// Sets the secret key
+		client_cmd(id, ".rpg_mod_skey %d", m_iSecretKey);
+		
+		// Lets use AngelScript for this part, so we don't spawn weapons on the world...
 		client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
-		client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
-		client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
-		client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+		
+		// 5 more snarks!
+		if (stats_randomweapon[id] >= AB_WEAPON_MAX && equali(g_array[rndnum], "weapon_snark"))
+			client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+		else if (equali(g_array[rndnum], "weapon_tripmine"))
+		{
+			// gives 3 more
+			client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+			client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+			client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+		}
+		else if (equali(g_array[rndnum], "weapon_satchel"))
+		{
+			// gives 4 more
+			client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+			client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+			client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+			client_cmd(id, ".rpg_mod_gwep %s %d", g_array[rndnum], m_iSecretKey);
+		}
 	}
 }
 
@@ -2025,7 +2155,7 @@ public ObtainWeapon_Find(id)
 //	ObtainAmmo_Grab()
 //------------------
 
-ObtainAmmo_Grab(szFilename[], id)
+ObtainAmmo_Grab(szFilename[], id, weaponid)
 {
 	if (!file_exists(szFilename))
 	{
@@ -2037,6 +2167,10 @@ ObtainAmmo_Grab(szFilename[], id)
 	
 	new clip, ammo;
 	new CurrentWeaponID = get_user_weapon(id, clip, ammo);
+	
+	// Its more than -1, lets use our defined id
+	if(weaponid > 0)
+		CurrentWeaponID = weaponid;
 	
 	// if the highest ammo level
 	// and weapon string is displacer, lets give some more ammo
@@ -2383,7 +2517,6 @@ public client_connect(id)
 		plyname[32],
 		auth[33];
 	
-	get_user_authid(id, auth, 32)
 	get_user_name(id, plyname, 31)
 	get_players(players, num)
 	
@@ -2391,8 +2524,9 @@ public client_connect(id)
 	{
 		if (is_user_connected(players[i]) && !is_user_bot(players[i]))
 		{
+			get_user_authid(id, auth, 32)
 			if (is_user_admin(players[i]))
-				format(formated_text, 500, "Player %s <^"{STEAMID}^"> is now connecting...", plyname, auth)
+				format(formated_text, 500, "Player %s <^"%s^"> is now connecting...", plyname, auth)
 			else
 				format(formated_text, 500, "Player %s is now connecting...", plyname)
 			PrintToChat(players[i], formated_text)
@@ -2403,7 +2537,6 @@ public client_connect(id)
 		return;
 	
 	FirstTimeJoining[id] = false;
-	HasLoadedStats[id] = false;
 	HasSpawned[id] = false;
 	stats_level[id] = 0;
 }
@@ -2422,11 +2555,10 @@ public TaskDelayConnect( id )
 
 	for( new m_iReward; m_iReward < Rewards; m_iReward++ )
 	{
-		// It will say (index out of bounds) for the rewards it doesn't have.
-		RewardsData[ id ][ m_iReward ] = GetRewardData(steamid, RewardsInfo[ m_iReward ][ _Save_Name ]);
+		RewardsData[ m_iReward ][ id ] = GetRewardData(steamid, RewardsInfo[ m_iReward ][ _Save_Name ]);
 
-		if( GetClientRewardStatus( RewardsPointer[ m_iReward ], RewardsData[ id ][ m_iReward ] ) == _In_Progress )
-			SetRewardData( steamid, RewardsInfo[ m_iReward ][ _Save_Name ], RewardsData[ id ][ m_iReward ]);
+		if( GetClientRewardStatus( RewardsPointer[ m_iReward ], RewardsData[ m_iReward ][ id ] ) == _In_Progress )
+			SetRewardData( steamid, RewardsInfo[ m_iReward ][ _Save_Name ], RewardsData[ m_iReward ][ id ]);
 		else
 			ClientRewardCompleted( id, RewardsPointer[ m_iReward ], .Announce = false );
 	}
@@ -2462,6 +2594,10 @@ public PlayerHasSpawned(id)
 	HasHolyGuard[id] = false;
 
 	stats_doublejump_temp[id] = 0;
+	
+	// Prestige rewards!
+	if (stats_prestige[id] >= 2)
+		give_item(id,"item_longjump")
 
 	// Lets calculate
 	if (stats_prestige[id] > 0)
@@ -2480,16 +2616,16 @@ public OnPlayerSpawn(id)
 {
 	if (glb_MapDefined_IsDisabled)
 		return;
-
+	
 	PlayerHasSpawned(id);
-
+	
 	// Checks if the player has spawned (so we don't save the player stats when they join and then just leaves directly after)
 	if ( !HasSpawned[id] )
 	{
-		stats_randomweapon_wait[id] = 10;
-		stats_holyguard_timer[id] = 10;
-		stats_auro_timer[id] = 10;
-		stats_ammo_wait[id] = 10;
+		stats_randomweapon_wait[id] = 30;
+		stats_holyguard_timer[id] = 30;
+		stats_auro_timer[id] = 30;
+		stats_ammo_wait[id] = 30;
 		
 		HasSpawned[id] = true;
 	}
@@ -2507,8 +2643,7 @@ public HelpOnConnect(id)
 
 	if ( enable_ranking )
 	{
-		new Position = GetPosition(id);
-		ply_rank[id] = Position;
+		GetPosition(id);
 		format(formated_text, 500, "Welcome %s to %s! You are on rank %d.", plyname, hostname, ply_rank[id])
 		PrintToChat(id, formated_text)
 	}
@@ -2567,18 +2702,15 @@ public PrintToChat(id, string[])
 	replace_all(string, 500, "{GRAY}", "");
 	
 	// Engine specific
-	new auth[33],
-		map_cur[33],
+	new map_cur[33],
 		map_time_int = get_timeleft(),
 		map_time[33]
 	
 	get_mapname(map_cur, 32)
 	format(map_time, 32, "%d", map_time_int)
-	get_user_authid(id, auth, 32)
 	
 	replace_all(string, 500, "{CURMAP}", map_cur);
 	replace_all(string, 500, "{TIMELEFT}", map_time);
-	replace_all(string, 500, "{STEAMID}", auth);
 
 	client_print(id, print_chat, string);
 
@@ -2638,20 +2770,12 @@ public CalculateEXP_Needed(id)
 
 public client_disconnect(id)
 {
-	//new auth[33];
-	//get_user_authid( id, auth, 32);
-	//SaveDate(auth);
-	//UpdateConnection(id, auth,false);
-	
 	// reset variable in case played indexes are magically switched and another client gets another set of connections
 	for( new m_iReward; m_iReward < Rewards; m_iReward++ )
-		RewardsData[id][m_iReward] = 0;
+		RewardsData[m_iReward][id] = 0;
 	
 	if(HasSpawned[id])
-	{
 		HasSpawned[id] = false;
-		HasLoadedStats[id] = false;
-	}
 	
 	FirstTimeJoining[id] = false;
 	
@@ -2674,7 +2798,8 @@ public client_disconnect(id)
 		num,
 		i,
 		plyname[32],
-		formated_text[501];
+		formated_text[501],
+		auth[33];
 	
 	get_players(players, num)
 	get_user_name(id, plyname, 31)
@@ -2683,8 +2808,9 @@ public client_disconnect(id)
 	{
 		if (is_user_connected(players[i]) && !is_user_bot(players[i]))
 		{
+			get_user_authid(id, auth, 32)
 			if (is_user_admin(players[i]))
-				format(formated_text, 500, "Player %s <^"{STEAMID}^"> has left the game...", plyname)
+				format(formated_text, 500, "Player %s <^"%s^"> has left the game...", plyname, auth)
 			else
 				format(formated_text, 500, "Player %s has left the game...", plyname)
 			PrintToChat(players[i], formated_text)
@@ -2697,9 +2823,9 @@ public client_disconnect(id)
 // ============================================================//
 
 //------------------
-//	MySQLx_Init()
+//	SQL_Init()
 //------------------
-stock Handle:MySQLx_Init(timeout = 0)
+public SQL_Init()
 {
 	static szHost[64], szUser[32], szPass[32], szDB[128];
 	static get_type[12], set_type[12];
@@ -2709,18 +2835,14 @@ stock Handle:MySQLx_Init(timeout = 0)
 	get_pcvar_string( mysqlx_type, set_type, 11);
 	get_pcvar_string( mysqlx_pass, szPass, 31 );
 	get_pcvar_string( mysqlx_db, szDB, 127 );
-
+	
 	SQL_GetAffinity(get_type, 12);
+	
+	sql_db = SQL_MakeDbTuple( szHost, szUser, szPass, szDB );
 
 	if (!equali(get_type, set_type))
-	{
 		if (!SQL_SetAffinity(set_type))
-		{
 			log_amx("Failed to set affinity from %s to %s.", get_type, set_type);
-		}
-	}
-
-	return SQL_MakeDbTuple( szHost, szUser, szPass, szDB, timeout );
 }
 
 //------------------
@@ -2744,138 +2866,54 @@ public QueryCreateTable( iFailState, Handle:hQuery, szError[ ], iError, iData[ ]
 
 SaveLevel(id, auth[])
 {
-	new error[128], errno
-
-	new Handle:info = MySQLx_Init()
-	new Handle:sql = SQL_Connect(info, errno, error, 127)
-
-	if (sql == Empty_Handle)
-	{
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", error)
-	}
-
-	new table[32]
-
+	new table[32],
+		plyname[32]
+	
 	get_cvar_string("rpg_table", table, 31)
-
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE (`authid` = '%s')", table, auth)
-
-	if (!SQL_Execute(query))
-	{
-		server_print("query not saved")
-		SQL_QueryError(query, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else {
-		new plyname[32]
-		get_user_name(id, plyname, 31)
-		SQL_QueryAndIgnore(sql,
-			"UPDATE `%s` SET `name` = '%s', `lvl` = %d, `skill_hp` = %i, `skill_sethp` = %i, `skill_armor` = %i, `skill_setarmor` = %i, `skill_doublejump` = %d, `skill_aura` = %d, `skill_holyguard` = %d, `skill_ammo` = %d, `skill_weapon` = %d, `points` = %d, `medals` = %d, `prestige` = %d, `exp` = %d WHERE `authid` = '%s';",
-			table,
-			plyname,
-			stats_level[id],
-			stats_health[id],
-			stats_health_set[id],
-			stats_armor[id],
-			stats_armor_set[id],
-			stats_doublejump[id],
-			stats_auro[id],
-			stats_holyguard[id],
-			stats_ammo[id],
-			stats_randomweapon[id],
-			stats_points[id],
-			stats_medals[id],
-			stats_prestige[id],
-			stats_xp[id],
-			auth
-		)
-	}
-
-	SQL_FreeHandle(query)
-	SQL_FreeHandle(sql)
-	SQL_FreeHandle(info)
+	get_user_name(id, plyname, 31)
+	
+	formatex(
+		sql_query_cache,
+		1023,
+		"INSERT INTO %s (`authid`, `name`) VALUES ('%s','%s') ON DUPLICATE KEY UPDATE `name` = '%s', `lvl` = %d, `skill_hp` = %i, `skill_sethp` = %i, `skill_armor` = %i, `skill_setarmor` = %i, `skill_doublejump` = %d, `skill_aura` = %d, `skill_holyguard` = %d, `skill_ammo` = %d, `skill_weapon` = %d, `points` = %d, `medals` = %d, `prestige` = %d, `exp` = %d WHERE `authid` = '%s';",
+		table,
+		auth,
+		plyname,
+		plyname,
+		stats_level[id],
+		stats_health[id],
+		stats_health_set[id],
+		stats_armor[id],
+		stats_armor_set[id],
+		stats_doublejump[id],
+		stats_auro[id],
+		stats_holyguard[id],
+		stats_ammo[id],
+		stats_randomweapon[id],
+		stats_points[id],
+		stats_medals[id],
+		stats_prestige[id],
+		stats_xp[id],
+		auth
+	)
+	
+	SQL_ThreadQuery( sql_db, "QueryHandle", sql_query_cache );
 }
 
-//------------------
-//	UpdateConnection()
-//------------------
-
-stock UpdateConnection(client, auth[],IsOnline=true)
-{
-	new error[128], errno
-	new countrycode[3]
-	new ip[33][32]
-
-	new Handle:info = MySQLx_Init()
-	new Handle:sql = SQL_Connect(info, errno, error, 127)
-
-	if (sql == Empty_Handle)
-	{
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", error)
+public QueryHandle( FailState, Handle:Query, Error[], Errcode, Data[], DataSize ) {
+	if ( FailState == TQUERY_CONNECT_FAILED ) {
+		log_amx( "[RPG SQL] Could not connect to SQL database." );
+		return set_fail_state("[RPG SQL] Could not connect to SQL database.");
 	}
-
-	if(IsOnline)
-	{
-		get_user_ip(client,ip[client],31)
-		geoip_code2_ex(ip[client],countrycode)
+	else if ( FailState == TQUERY_QUERY_FAILED ) {
+		new sql[1024];
+		SQL_GetQueryString ( Query, sql, 1024 );
+		log_amx( "[RPG SQL] SQL Query failed: %s", sql );
+		return set_fail_state("[RPG SQL] SQL Query failed.");
 	}
-
-	new table[32]
-
-	get_cvar_string("rpg_table", table, 31)
-
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE (`authid` = '%s')", table, auth)
-
-	if (!SQL_Execute(query))
-	{
-		server_print("query not saved")
-		SQL_QueryError(query, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else {
-		if (IsOnline)
-			SQL_QueryAndIgnore(sql, "UPDATE `%s` SET `online` = 'true',`country` = '%s' WHERE `authid` = '%s';", table, countrycode, auth )
-		else
-			SQL_QueryAndIgnore(sql, "UPDATE `%s` SET `online` = 'false' WHERE `authid` = '%s';", table, auth )
-	}
-
-	SQL_FreeHandle(query)
-	SQL_FreeHandle(sql)
-	SQL_FreeHandle(info)
-}
-
-//------------------
-//	SaveDate()
-//------------------
-
-stock SaveDate(auth[])
-{
-	new error[128], errno
-
-	new Handle:info = MySQLx_Init()
-	new Handle:sql = SQL_Connect(info, errno, error, 127)
-
-	if (sql == Empty_Handle)
-	{
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", error)
-	}
-
-	new table[32]
-
-	get_cvar_string("rpg_table", table, 31)
-
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE (`authid` = '%s')", table, auth)
-
-	if (!SQL_Execute(query))
-	{
-		server_print("query not saved")
-		SQL_QueryError(query, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else {
-		SQL_QueryAndIgnore(sql, "UPDATE `%s` SET `date` = UNIX_TIMESTAMP(NOW()) WHERE `authid` = '%s';", table, auth )
-	}
-
-	SQL_FreeHandle(query)
-	SQL_FreeHandle(sql)
-	SQL_FreeHandle(info)
+	
+	if(Errcode) return log_amx( "[RPG SQL] SQL Error on query: %s", Error );
+	return PLUGIN_CONTINUE;
 }
 
 //------------------
@@ -2884,50 +2922,198 @@ stock SaveDate(auth[])
 
 LoadLevel(id, auth[], LoadMyStats = true)
 {
-	// This will fix some minor bugs when joining.
-	rank_max = 0
-	new error[128], errno
-
-	new Handle:info = MySQLx_Init()
-	new Handle:sql = SQL_Connect(info, errno, error, 127)
-
-	if (sql == Empty_Handle)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", error)
-
-	new table[32], table2[32]
+	new table[32],
+		table2[32],
+		send_id[1];
+	send_id[0] = id;
 
 	get_cvar_string("rpg_table", table, 31)
 	get_cvar_string("rpg_rank_table", table2, 31)
-
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE (`authid` = '%s')", table, auth)
-	new Handle:query_g = SQL_PrepareQuery(sql, "SELECT `authid` FROM `%s`", table)
-
-	// This is a pretty basic code, get all people from the database.
-	if (!SQL_Execute(query_g))
+	
+	formatex(
+		sql_query_cache,
+		1023,
+		"SELECT `authid` FROM `%s`",
+		table
+	)
+	
+	SQL_ThreadQuery( sql_db, "QueryRank", sql_query_cache );
+	
+	if(LoadMyStats)
 	{
-		server_print("rpg_table doesn't exist?")
-		SQL_QueryError(query_g, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else {
-		while (SQL_MoreResults(query_g))
-		{
-			rank_max++;
-			SQL_NextRow(query_g);
-		}
+		server_print("loaded stats for:^nID: ^"%s^"", auth);
+		formatex(
+			sql_query_cache,
+			1023,
+			"SELECT * FROM `%s` WHERE (`authid` = '%s')",
+			table,
+			auth
+		)
+		SQL_ThreadQuery( sql_db, "LoadDataHandle", sql_query_cache, send_id, 1 );
 	}
-	SQL_FreeHandle(query_g);
+	
+	formatex(
+		sql_query_cache,
+		1023,
+		"SELECT * FROM `%s` WHERE `lvl` <= (%d) and `lvl` ORDER BY abs(`lvl` - %d) LIMIT 1",
+		table2,
+		stats_level[id],
+		stats_level[id]
+	)
+	
+	SQL_ThreadQuery( sql_db, "QueryPosition", sql_query_cache, send_id );
+}
 
-	if (!SQL_Execute(query))
+//------------------
+//	QueryPosition()
+//------------------
+
+public QueryPosition(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED) 
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+	
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+	
+	while (SQL_MoreResults(Query))
 	{
-		server_print("LoadStats query has stopped due to errors.")
-		SQL_QueryError(query, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else if (SQL_NumResults(query)) {
-		server_print("loaded stats for:^nID: ^"%s^"", auth)
+		new id = Data[0]
+		// Not the best code, this needs improvements...
+		new ranktitle[185]
+		SQL_ReadResult(Query, 1, ranktitle, 31)
+		// This only gets the max players on the database
+		top_rank = rank_max
+		// This reads the players EXP, and then checks with other players EXP to get the players rank
+		GetPosition(id);
+		// Sets the title
+		rank_name[id] = ranktitle;
+		SQL_NextRow(Query);
+	}
+	
+	return PLUGIN_CONTINUE;
+}
 
-		HasLoadedStats[id] = true;
+//------------------
+//	QueryTop10()
+//------------------
 
-		new hps,
+public QueryTop10(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED) 
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+	
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+	
+	static getnum
+
+	// Lets not bug the top10 by adding more when we write /top10
+	getnum = 0
+	
+	new id = Data[0],
+		menuBody[1515],
+		name[33],
+		prestige[33],
+		hasprestiged[33],
+		len = format(menuBody, 1514, "SC Stats -- Top10^n^n")
+	
+	while (SQL_MoreResults(Query))
+	{
+		SQL_ReadResult(Query, 0, name, 32)
+		SQL_ReadResult(Query, 3, prestige, 32)
+
+		if (str_to_num(prestige) > 0)
+			format(hasprestiged, 32, "(%d)", str_to_num(prestige));
+		else
+			hasprestiged = "";
+
+		len += format(
+			menuBody[len],
+			1514-len,
+			"#%d. %s %s^n",
+			++getnum,
+			name,
+			hasprestiged
+		)
+
+		SQL_NextRow(Query);
+	}
+	
+	show_menu(id, getnum, menuBody, 8)
+	
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	QueryRankTitle()
+//------------------
+
+public QueryRankTitle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED) 
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+	
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+	
+	while (SQL_MoreResults(Query))
+	{
+		new id = Data[0]
+		new ranktitle[185]
+		SQL_ReadResult(Query, 1, ranktitle, 31)
+		top_rank = rank_max
+		rank_name[id] = ranktitle;
+		SQL_NextRow(Query);
+	}
+	
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	QueryRank()
+//------------------
+
+public QueryRank(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED) 
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+	
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+	
+	rank_max = 0;
+	
+	while (SQL_MoreResults(Query))
+	{
+		rank_max++;
+		SQL_NextRow(Query);
+	}
+	
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	LoadDataHandle()
+//------------------
+
+public LoadDataHandle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED) 
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+	
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+	
+	if (SQL_NumResults(Query) >= 1) 
+	{
+		new id = Data[0],
+			hps,
 			hps_set,
 			armor,
 			armor_set,
@@ -2942,20 +3128,20 @@ LoadLevel(id, auth[], LoadMyStats = true)
 			prestige,
 			exp;
 
-		exp = SQL_FieldNameToNum(query, "exp");
-		lvl = SQL_FieldNameToNum(query, "lvl");
-		hps = SQL_FieldNameToNum(query, "skill_hp");
-		hps_set = SQL_FieldNameToNum(query, "skill_sethp");
-		armor = SQL_FieldNameToNum(query, "skill_armor");
-		armor_set = SQL_FieldNameToNum(query, "skill_setarmor");
-		holyguard = SQL_FieldNameToNum(query, "skill_holyguard");
-		ammo = SQL_FieldNameToNum(query, "skill_ammo");
-		doublejump = SQL_FieldNameToNum(query, "skill_doublejump");
-		auro = SQL_FieldNameToNum(query, "skill_aura");
-		weapon = SQL_FieldNameToNum(query, "skill_weapon");
-		points = SQL_FieldNameToNum(query, "points");
-		medals = SQL_FieldNameToNum(query, "medals");
-		prestige = SQL_FieldNameToNum(query, "prestige");
+		exp = SQL_FieldNameToNum(Query, "exp");
+		lvl = SQL_FieldNameToNum(Query, "lvl");
+		hps = SQL_FieldNameToNum(Query, "skill_hp");
+		hps_set = SQL_FieldNameToNum(Query, "skill_sethp");
+		armor = SQL_FieldNameToNum(Query, "skill_armor");
+		armor_set = SQL_FieldNameToNum(Query, "skill_setarmor");
+		holyguard = SQL_FieldNameToNum(Query, "skill_holyguard");
+		ammo = SQL_FieldNameToNum(Query, "skill_ammo");
+		doublejump = SQL_FieldNameToNum(Query, "skill_doublejump");
+		auro = SQL_FieldNameToNum(Query, "skill_aura");
+		weapon = SQL_FieldNameToNum(Query, "skill_weapon");
+		points = SQL_FieldNameToNum(Query, "points");
+		medals = SQL_FieldNameToNum(Query, "medals");
+		prestige = SQL_FieldNameToNum(Query, "prestige");
 
 		new sql_lvl,
 			sql_exp,
@@ -2972,181 +3158,105 @@ LoadLevel(id, auth[], LoadMyStats = true)
 			sql_medals,
 			sql_prestige;
 
-		while (SQL_MoreResults(query))
+		while (SQL_MoreResults(Query))
 		{
-			if (LoadMyStats)
-			{
-				sql_lvl = SQL_ReadResult(query, lvl);
-				sql_exp = SQL_ReadResult(query, exp);
-				sql_ammo = SQL_ReadResult(query, ammo);
-				sql_hps = SQL_ReadResult(query, hps);
-				sql_hps_set = SQL_ReadResult(query, hps_set);
-				sql_armor = SQL_ReadResult(query, armor);
-				sql_armor_set = SQL_ReadResult(query, armor_set);
-				sql_holyguard = SQL_ReadResult(query, holyguard);
-				sql_doublejump = SQL_ReadResult(query, doublejump);
-				sql_auro = SQL_ReadResult(query, auro);
-				sql_weapon = SQL_ReadResult(query, weapon);
-				sql_points = SQL_ReadResult(query, points);
-				sql_medals = SQL_ReadResult(query, medals);
-				sql_prestige = SQL_ReadResult(query, prestige);
+			sql_lvl = SQL_ReadResult(Query, lvl);
+			sql_exp = SQL_ReadResult(Query, exp);
+			sql_ammo = SQL_ReadResult(Query, ammo);
+			sql_hps = SQL_ReadResult(Query, hps);
+			sql_hps_set = SQL_ReadResult(Query, hps_set);
+			sql_armor = SQL_ReadResult(Query, armor);
+			sql_armor_set = SQL_ReadResult(Query, armor_set);
+			sql_holyguard = SQL_ReadResult(Query, holyguard);
+			sql_doublejump = SQL_ReadResult(Query, doublejump);
+			sql_auro = SQL_ReadResult(Query, auro);
+			sql_weapon = SQL_ReadResult(Query, weapon);
+			sql_points = SQL_ReadResult(Query, points);
+			sql_medals = SQL_ReadResult(Query, medals);
+			sql_prestige = SQL_ReadResult(Query, prestige);
 
-				//-----
-				stats_health[id] = sql_hps;
-				stats_health_set[id] = sql_hps_set;
-				stats_armor[id] = sql_armor;
-				stats_armor_set[id] = sql_armor_set;
-				stats_holyguard[id] = sql_holyguard;
-				stats_doublejump[id] = sql_doublejump;
-				stats_auro[id] = sql_auro;
-				stats_ammo[id] = sql_ammo;
-				stats_randomweapon[id] = sql_weapon;
-				//-----
-				stats_level[id] = sql_lvl;
-				stats_xp[id] = sql_exp;
-				//-----
-				stats_medals[id] = sql_medals;
-				stats_prestige[id] = sql_prestige;
-				stats_points[id] = sql_points;
-				//-----
-
-				//SaveDate(auth);
-				//UpdateConnection(id, auth);
-			}
-
-			SQL_NextRow(query);
+			//-----
+			stats_health[id] = sql_hps;
+			stats_health_set[id] = sql_hps_set;
+			stats_armor[id] = sql_armor;
+			stats_armor_set[id] = sql_armor_set;
+			stats_holyguard[id] = sql_holyguard;
+			stats_doublejump[id] = sql_doublejump;
+			stats_auro[id] = sql_auro;
+			stats_ammo[id] = sql_ammo;
+			stats_randomweapon[id] = sql_weapon;
+			//-----
+			stats_level[id] = sql_lvl;
+			stats_xp[id] = sql_exp;
+			//-----
+			stats_medals[id] = sql_medals;
+			stats_prestige[id] = sql_prestige;
+			stats_points[id] = sql_points;
+			//-----
+			SQL_NextRow(Query);
 		}
-	} else {
-		// The user doesn't exist, lets stop the process.
-		return;
 	}
+	
+	return PLUGIN_CONTINUE;
+}
 
-	// This will read the player LVL and then give him the title he needs
-	new Handle:query2 = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE `lvl` <= (%d) and `lvl` ORDER BY abs(`lvl` - %d) LIMIT 1", table2, stats_level[id], stats_level[id])
-	if (!SQL_Execute(query2))
+//------------------
+//	LoadPosition()
+//------------------
+
+public LoadPosition(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED) 
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+	
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+	
+	static Position;
+
+	// If used, lets reset it
+	Position = 0;
+	
+	while (SQL_MoreResults(Query))
 	{
-		server_print("query not loaded [query2]")
-		SQL_QueryError(query2, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else {
-		while (SQL_MoreResults(query2))
+		new id = Data[0]
+		Position++
+		new authid[33]
+		SQL_ReadResult(Query, 0, authid, 32)
+		new auth_self[33];
+		get_user_authid(id, auth_self, 32);
+		if (equal(auth_self, authid))
 		{
-			// Not the best code, this needs improvements...
-			new ranktitle[185]
-			SQL_ReadResult(query2, 1, ranktitle, 31)
-			// This only gets the max players on the database
-			top_rank = rank_max
-			// This reads the players EXP, and then checks with other players EXP to get the players rank
-			new Position = GetPosition(id);
 			ply_rank[id] = Position;
-			// Sets the title
-			rank_name[id] = ranktitle;
-			SQL_NextRow(query2);
+			return PLUGIN_CONTINUE;
 		}
+		SQL_NextRow(Query);
 	}
-
-	SQL_FreeHandle(query2);
-	SQL_FreeHandle(query);
-	SQL_FreeHandle(sql);
-	SQL_FreeHandle(info);
+	
+	return PLUGIN_CONTINUE;
 }
 
 //------------------
 //	GetPosition()
 //------------------
 
-GetPosition(id)
+public GetPosition(id)
 {
-	static Position;
-
-	// If used, lets reset it
-	Position = 0;
-
-	new error[128], errno
-	new Handle:info = MySQLx_Init()
-	new Handle:sql = SQL_Connect(info, errno, error, 127)
-
-	if (sql == Empty_Handle)
-	{
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", error)
-	}
-
-	new table[32]
-
+	new table[32],
+		send_id[1];
+	send_id[0] = id;
+	
 	get_cvar_string("rpg_table", table, 31)
-
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT `authid` FROM `%s` ORDER BY `prestige` DESC, `lvl` + 0 DESC", table)
-
-	// This is a pretty basic code, get all people from the database.
-	if (!SQL_Execute(query))
-	{
-		server_print("GetPosition not loaded")
-		SQL_QueryError(query, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else {
-		while (SQL_MoreResults(query))
-		{
-			Position++
-			new authid[33]
-			SQL_ReadResult(query, 0, authid, 32)
-			new auth_self[33];
-			get_user_authid(id, auth_self, 32);
-			if (equal(auth_self, authid))
-				return Position;
-			SQL_NextRow(query);
-		}
-	}
-	SQL_FreeHandle(query);
-	SQL_FreeHandle(sql);
-	SQL_FreeHandle(info);
-	return 0;
-}
-
-//------------------
-//	CreateStats()
-//------------------
-
-CreateStats(id, auth[])
-{
-	new error[128], errno
-
-	new Handle:info = MySQLx_Init()
-	new Handle:sql = SQL_Connect(info, errno, error, 127)
-
-	if (sql == Empty_Handle)
-	{
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", error)
-	}
-
-	new table[32]
-
-	get_cvar_string("rpg_table", table, 31)
-
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE (`authid` = '%s')", table, auth)
-
-	if (!SQL_Execute(query))
-	{
-		server_print("query not saved")
-		SQL_QueryError(query, error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", error)
-	} else if (SQL_NumResults(query)) {
-		// If we already created one, lets continnue
-	} else {
-		console_print(id, "Adding to database:^nID: ^"%s^"", auth)
-		server_print("Adding to database:^nID: ^"%s^"", auth)
-
-		new plyname[32]
-		get_user_name(id,plyname,31)
-
-		SQL_QueryAndIgnore(sql, "INSERT INTO `%s` (`authid`, `name`) VALUES ('%s', '%s')", table, auth, plyname)
-	}
-
-	//SaveDate(auth);
-	//UpdateConnection(id, auth);
-
-	SQL_FreeHandle(query)
-	SQL_FreeHandle(sql)
-	SQL_FreeHandle(info)
+	
+	formatex(
+		sql_query_cache,
+		1023,
+		"SELECT `authid` FROM `%s` ORDER BY `prestige` DESC, `lvl` + 0 DESC",
+		table
+	)
+	
+	SQL_ThreadQuery( sql_db, "LoadPosition", sql_query_cache, send_id );
 }
 
 //------------------
@@ -3380,9 +3490,13 @@ stock rpg_get_health(id)
 
 PlayerNotReachedCap(id)
 {
-	if (stats_xp_cap[id] == 0) return true;
-	if (stats_xp[id] >= stats_xp_cap[id])
-		return false;
+	if (glb_MapDefined_SetEXPCap <= 0) return true;
+	
+	// Lets check if the temp is higher or equals to the cap.
+	if (stats_xp_temp[id] >= stats_xp_cap[id]) return false;
+	// Lets add some numbers into the temp value.
+	stats_xp_temp[id] = stats_xp_temp[id] + stats_xp[id];
+	
 	return true;
 }
 
@@ -3392,8 +3506,11 @@ PlayerNotReachedCap(id)
 
 PlayerNotReachedJumpCap(id)
 {
+	// If its 0, then its the default amount. But if someone adds more than the max amount, it goes back to the defined max.
 	if (glb_MapDefined_MaxJumps == 0)
-		glb_MapDefined_MaxJumps = 5;
+		glb_MapDefined_MaxJumps = AB_DOUBLEJUMP_MAX;
+	else if (glb_MapDefined_MaxJumps > AB_DOUBLEJUMP_MAX)
+		glb_MapDefined_MaxJumps = AB_DOUBLEJUMP_MAX;
 
 	if (stats_doublejump_temp[id] >= glb_MapDefined_MaxJumps)
 		return false;

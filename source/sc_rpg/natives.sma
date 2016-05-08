@@ -1,11 +1,9 @@
 // API by Xellath
 // Modified by JonnyBoy0719
 
-#include < hamsandwich >
-
 //#define DebugMode
 
-const MaxClients = 32;
+const MaxClients = 33;
 const MaxSteamIdChars = 35;
 
 enum Status
@@ -101,8 +99,11 @@ public _ClientRewardCompleted( Plugin, Params )
 		new ClientName[ MaxClients ];
 		get_user_name( Client, ClientName, charsmax( ClientName ) );
 		
+		// Example:
+		// <player> has unlocked the challange "My first challenge!" - 5 out of 10 challenge(s) completed
+		
 		client_print( 0, print_chat, 
-			"%s unlocked: ^"%s^" - Progress: %i/%i",
+			"%s has unlocked the challenge ^"%s^" - %i out of %i challenge(s) completed",
 			ClientName,
 			RewardData[ _Name ],
 			RewardsCompleted[ Client ],
