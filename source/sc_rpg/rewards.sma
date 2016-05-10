@@ -6,7 +6,8 @@ enum _:Rewards
 	_Prestige_LJ,
 	_TeamPlayer,
 	_GodsDoing,
-	_Secret1
+	_Secret1,
+	_Secret2
 };
 
 // Time to setup our structure!
@@ -21,7 +22,7 @@ enum _:RewardStructData
 };
 
 // total medals as of current.
-// 10
+// 12
 
 new const RewardsInfo[ Rewards ][ RewardStructData ] = 
 {
@@ -72,11 +73,20 @@ new const RewardsInfo[ Rewards ][ RewardStructData ] =
 	},
 	// _Secret1
 	{
-		"Praise The Alien Overlord!", //I'm Nihilanth's slave!
+		"Praise The Alien Overlord!", //note: write on the console say "I'm Nihilanth's slave!"
 		"What even is this",
 		"progress_secret1",
 		800,
 		1,
+		1
+	},
+	// _Secret2
+	{
+		"I'm dying over here!", //note: Spam 'medic' 5 times
+		"If it bleeds, you can heal it",
+		"progress_secret2",
+		1250,
+		2,
 		1
 	}
 };
