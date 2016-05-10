@@ -2985,7 +2985,7 @@ public SQL_Init()
 	
 	sql_db = SQL_MakeDbTuple( szHost, szUser, szPass, szDB );
 	
-	SQL_Connect(sql_db, sql_errno, sql_error, 127)
+	sql = SQL_Connect(sql_db, sql_errno, sql_error, 127)
 
 	if (sql == Empty_Handle)
 		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", sql_error)
