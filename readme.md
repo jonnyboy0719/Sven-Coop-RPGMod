@@ -7,13 +7,15 @@ Credits
 -----------
 
 `JonnyBoy0719` - Programming  
+`Swampdog` - Testing  
 `Shadow Knight/Dark-fox` - Testing  
+`Daybraker` - Testing  
 
 ###### Custom Sounds
 `Deathmatch Classic`  
-`Hellmouth(map)`  
+`Hellmouth (Map Series)`  
 `Warcraft 3/Blizzard`  
-`Master Sword: Continued(MS:C)`  
+`Master Sword: Continued (MS:C)`  
 `The Specialists`  
 
 
@@ -35,6 +37,7 @@ Commands
 -----------
 
 `/help` - Prints all the available commands on the console  
+`/challenges` - Shows your challange progress  
 `/reset` - To reset your skills  
 `/fullreset` - To reset your level, skills and experience back to 0 (can't be undone!)  
 `/skillsinfo` - Prints the info about the skills  
@@ -51,7 +54,8 @@ Server Commands
 `rpg_gameinfo` - This will enable GameInformation to be overwritten.  
 `rpg_exp_bonus` - This will set an extra amount of EXP you will gain per frag  
 `rpg_set_level` - This will set the level of a user (and reset their skills)  
-`rpg_set_prestige` - This will set the prestige level of a user 
+`rpg_set_prestige` - This will set the prestige level of a user  
+`rpg_skill_gift` - This will activate the `A Gift From The Gods`, even if the user doesn't have it  
 
 
 How it Works

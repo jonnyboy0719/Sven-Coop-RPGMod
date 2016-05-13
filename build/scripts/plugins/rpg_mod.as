@@ -62,6 +62,10 @@ void CVAR_GrabWeapon( const CCommand@ args )
 void DeleteKey(int &in pIndex)
 {
 	CBasePlayer@ pPlayer = g_PlayerFuncs.FindPlayerByIndex(pIndex);
+	
+	if (pPlayer is null)
+		return;
+	
 	string szSteamId = g_EngineFuncs.GetPlayerAuthId( pPlayer.edict() );
 	if(g_PlayerData.exists(szSteamId))
 		g_PlayerData.delete(szSteamId);

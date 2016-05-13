@@ -1,6 +1,17 @@
 //=============================================================================
 //
-// This plugin is using BB Stats and BDEF Stats as a base, so you will see some leftover codes here and there.
+//	This plugin is using BB Stats and BDEF Stats as a base, so you will see some leftover codes here and there.
+//
+//	RPG Mod for Sven Co-op 5.x
+//
+//	Created by JonnyBoy0719
+//	Additional help:
+//				Swampdog
+//				Shadow Knight/Dark-fox
+//				Daybreaker
+//
+//	SourceCode can be found available @
+//					https://github.com/jonnyboy0719/Sven-Coop-RPGMod
 //
 //=============================================================================
 
@@ -72,7 +83,7 @@
 // Plugin
 #define PLUGIN						"Sven Co-op RPG Mod"
 #define AUTHOR						"JonnyBoy0719"
-#define VERSION						"21.2"
+#define VERSION						"21.3"
 
 // Adverts
 #define AdvertSetup_Max				10
@@ -1350,7 +1361,7 @@ public client_putinserver(id)
 	if ( !HasLoadedStats[id] )
 		CreateStats(id, auth);
 
-	set_task(5.0, "ShowInfo", id)
+	set_task(3.0, "ShowInfo", id)
 
 	return PLUGIN_CONTINUE;
 }
@@ -1376,7 +1387,7 @@ public ShowInfo(id)
 	StatsVersion(id)
 	HelpOnConnect(id)
 	if( enable_ranking )
-		set_task(8.0, "ShowStatsOnSpawn", id)
+		set_task(5.0, "ShowStatsOnSpawn", id)
 }
 
 //------------------
@@ -2837,7 +2848,7 @@ public HelpOnConnect(id)
 public ShowStatsOnSpawn(id)
 {
 	TaskDelayConnect(id);
-	
+
 	new players[32],
 		num,
 		i;
@@ -2852,22 +2863,51 @@ public ShowStatsOnSpawn(id)
 				ShowMyRank(id);
 				continue;
 			}
+			else
+				set_task(1.1, "Delay_ShowStatsOnSpawn", id);
+		}
+	}
+}
 
-			new plyname[32],
-				formated_text[501]
+//------------------
+//	Delay_ShowStatsOnSpawn()
+//------------------
 
-			get_user_name(id, plyname, 31)
-			GetCurrentRankTitle(id)
+public Delay_ShowStatsOnSpawn(id)
+{
+	// Shitty code, but yeah.
+	new players[32],
+		num,
+		i,
+		plyname[32],
+		formated_text[501]
+
+	GetCurrentRankTitle(id)
+	get_user_name(id, plyname, 31)
+
+	get_players(players, num)
+	for (i=0; i<num; i++)
+	{
+		if (is_user_connected(players[i]) && !is_user_bot(players[i]))
+		{
+			if (players[i] == id)
+				continue;
 
 			if (!equali(rank_name[id], "Loading..."))
 				format(formated_text, 500, "%s is %s. Ranked %d of %d.", plyname, rank_name[id], ply_rank[id], top_rank)
 			else
 				format(formated_text, 500, "%s has joined for the first time!", plyname)
 
-			PrintToChat( players[i], formated_text)
+			PrintToChat(players[i], formated_text)
 		}
 	}
+
+	return PLUGIN_HANDLED
 }
+
+//------------------
+//	PrintToChat()
+//------------------
 
 public PrintToChat(id, string[])
 {
