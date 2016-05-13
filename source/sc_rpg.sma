@@ -274,7 +274,7 @@ public plugin_init()
 	}
 
 	// Lets delay the connection
-	set_task( 0.3, "SQL_Init" );
+	set_task( 0.3, "SQL_Init", 0 );
 }
 
 //------------------
@@ -311,6 +311,16 @@ public plugin_end()
 	}
 
 	ArrayDestroy( Reward );
+
+	// Lets kill all timers
+	if(task_exists(0))
+		remove_task(0)
+
+	new players[32], num
+	get_players(players, num)
+	for (new i=0; i<num; i++)
+		if(task_exists(players[i]))
+			remove_task(players[i])
 }
 
 //------------------
