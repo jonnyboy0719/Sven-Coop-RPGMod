@@ -1351,6 +1351,9 @@ public client_putinserver(id)
 	if ( !HasLoadedStats[id] )
 		CreateStats(id, auth);
 
+	// The title will take awhile to load, so instead of having a blank text, lets have a 'Loading' text instead.
+	rank_name[id] = "Loading...";
+
 	set_task(3.0, "ShowInfo", id)
 
 	return PLUGIN_CONTINUE;
