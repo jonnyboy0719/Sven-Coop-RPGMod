@@ -28,9 +28,6 @@
 #include <fun>
 #include <sc_rpg_api>
 
-#include <sqlvault>
-#include <sqlvault_ex>
-
 //------------------
 //	Defines
 //------------------
@@ -83,7 +80,7 @@
 // Plugin
 #define PLUGIN						"Sven Co-op RPG Mod"
 #define AUTHOR						"JonnyBoy0719"
-#define VERSION						"21.3"
+#define VERSION						"22.5"
 
 // Adverts
 #define AdvertSetup_Max				10
@@ -175,8 +172,6 @@ new setranking,
 
 new g_array[80][228];
 
-new SQLVault:VaultHandle;
-
 //------------------
 //	Includes
 //------------------
@@ -230,6 +225,7 @@ public plugin_init()
 	mysqlx_pass = register_cvar ("rpg_pass", "rpg_mod"); // The password from the db password
 	mysqlx_type = register_cvar ("rpg_type", "mysql"); // The password from the db type
 	mysqlx_db = register_cvar ("rpg_dbname", "sc_rpg"); // The database name
+	register_cvar ("rpg_table_api", "rpg_rewards"); // The Challenges API table
 	register_cvar ("rpg_table", "rpg_stats"); // The table where it will save the information
 	register_cvar ("rpg_rank_table", "rpg_ranks"); // The table where it will save the information
 	register_cvar ("rpg_gameinfo", "1"); // This will enable GameInformation to be overwritten.
@@ -258,9 +254,6 @@ public plugin_init()
 
 	Reward = ArrayCreate(RewardsStruct);
 
-	VaultHandle = sqlv_open_default("sc_rpg_api", false);
-	sqlv_init_ex(VaultHandle);
-
 	// Time to register the rewards!
 	// To create your own, add them on your own plugin, and use the API.
 	for( new m_iReward; m_iReward < Rewards; m_iReward++ )
@@ -272,9 +265,6 @@ public plugin_init()
 			RewardsInfo[ m_iReward ][ _Max_Value ]
 			);
 	}
-
-	// Lets delay the connection
-	set_task( 0.3, "SQL_Init", 0 );
 }
 
 //------------------
@@ -285,6 +275,9 @@ public plugin_cfg()
 {
 	// Check if the map is blacklisted
 	CheckIfBlacklisted();
+	
+	// Lets delay the connection
+	set_task( 2.3, "SQL_Init", 0 );
 }
 
 //------------------
@@ -293,14 +286,14 @@ public plugin_cfg()
 
 public plugin_end()
 {
-	if ( sql_db )
-		SQL_FreeHandle( sql_db );
+	// Lets disable the plugin (so we don't save and load our information)
+	glb_MapDefined_IsDisabled = true;
 
-	if ( sql )
-		SQL_FreeHandle( sql );
+	// Lets close down the connection
+	SQL_FreeHandle( sql_db );
+	SQL_FreeHandle( sql );
 
-	sqlv_close( VaultHandle );
-
+	// Destroy all arrays
 	new TotalRewards = ArraySize( Reward );
 	new RewardData[ RewardsStruct ];
 
@@ -311,16 +304,6 @@ public plugin_end()
 	}
 
 	ArrayDestroy( Reward );
-
-	// Lets kill all timers
-	if(task_exists(0))
-		remove_task(0)
-
-	new players[32], num
-	get_players(players, num)
-	for (new i=0; i<num; i++)
-		if(task_exists(players[i]))
-			remove_task(players[i])
 }
 
 //------------------
@@ -551,7 +534,7 @@ public CVAR_SetStatsLevel(id, level, cid)
 
 public CVAR_Skill_GiftFromTheGods(id, level, cid)
 {
-	if (!cmd_access(id, level, cid, 2))
+	if (!cmd_access(id, level, cid, 1))
 		return PLUGIN_HANDLED
 
 	new arg[32]
@@ -588,7 +571,7 @@ public CVAR_Skill_GiftFromTheGods(id, level, cid)
 
 public CVAR_ReloadBlacklist(id, level, cid)
 {
-	if (!cmd_access(id, level, cid, 2))
+	if (!cmd_access(id, level, cid, 0))
 		return PLUGIN_HANDLED
 
 	new authid[32],
@@ -1357,10 +1340,7 @@ public RegenTimer(id)
 public client_putinserver(id)
 {
 	if (glb_MapDefined_IsDisabled)
-		return PLUGIN_HANDLED;
-
-	if (is_user_bot(id))
-		return PLUGIN_HANDLED;
+		return PLUGIN_CONTINUE;
 
 	PlayerHasSpawned(id)
 
@@ -1406,9 +1386,6 @@ public ShowInfo(id)
 
 public GameInformation()
 {
-	if (glb_MapDefined_IsDisabled)
-		return PLUGIN_HANDLED;
-
 	new bb_getinfo = get_cvar_num ( "rpg_gameinfo" )
 	if (bb_getinfo>=1)
 	{
@@ -1897,7 +1874,7 @@ public ShowTop10(id)
 public PluginThinkLoop()
 {
 	if (glb_MapDefined_IsDisabled)
-		return PLUGIN_HANDLED;
+		return PLUGIN_CONTINUE;
 
 	new iPlayers[32],iNum
 	get_players(iPlayers, iNum)
@@ -2009,7 +1986,7 @@ public PluginThinkLoop()
 public client_PreThink(id)
 {
 	if (glb_MapDefined_IsDisabled)
-		return PLUGIN_HANDLED;
+		return PLUGIN_CONTINUE;
 
 	if(!is_user_alive(id))
 		return PLUGIN_CONTINUE;
@@ -2027,7 +2004,7 @@ public client_PreThink(id)
 public client_PostThink(id)
 {
 	if (glb_MapDefined_IsDisabled)
-		return PLUGIN_HANDLED;
+		return PLUGIN_CONTINUE;
 
 	if(!is_user_alive(id))
 		return PLUGIN_CONTINUE;
@@ -2663,7 +2640,7 @@ public ShowPlayerInfo()
 public PluginAdverts()
 {
 	if (glb_MapDefined_IsDisabled)
-		return PLUGIN_HANDLED;
+		return PLUGIN_CONTINUE;
 	
 	AdvertSetup++;
 	
@@ -2703,30 +2680,6 @@ public PluginAdverts()
 
 public client_connect(id)
 {
-	// Connected
-	new players[32],
-		num,
-		i,
-		formated_text[501],
-		plyname[32],
-		auth[33];
-
-	get_user_name(id, plyname, 31)
-	get_players(players, num)
-
-	for (i = 0; i<num; i++)
-	{
-		if (is_user_connected(players[i]) && !is_user_bot(players[i]))
-		{
-			get_user_authid(id, auth, 32)
-			if (is_user_admin(players[i]))
-				format(formated_text, 500, "Player %s <^"%s^"> is now connecting...", plyname, auth)
-			else
-				format(formated_text, 500, "Player %s is now connecting...", plyname)
-			PrintToChat(players[i], formated_text)
-		}
-	}
-
 	if (glb_MapDefined_IsDisabled)
 		return;
 
@@ -2741,9 +2694,6 @@ public client_connect(id)
 
 public TaskDelayConnect( id )
 {
-	// our client id (id) = (TaskId - TaskIdDelayConnect (3799))
-	//new id = TaskId - 3799;
-
 	new steamid[35];
 	get_user_authid(id, steamid, charsmax(steamid))
 
@@ -2756,9 +2706,6 @@ public TaskDelayConnect( id )
 		else
 			ClientRewardCompleted( id, RewardsPointer[ m_iReward ], .Announce = false );
 	}
-
-	// remove task
-	//remove_task( id + 3799 );
 }
 
 //------------------
@@ -2858,25 +2805,8 @@ public HelpOnConnect(id)
 public ShowStatsOnSpawn(id)
 {
 	TaskDelayConnect(id);
-
-	new players[32],
-		num,
-		i;
-
-	get_players(players, num)
-	for (i=0; i<num; i++)
-	{
-		if (is_user_connected(players[i]) && !is_user_bot(players[i]))
-		{
-			if (players[i] == id)
-			{
-				ShowMyRank(id);
-				continue;
-			}
-			else
-				set_task(1.1, "Delay_ShowStatsOnSpawn", id);
-		}
-	}
+	ShowMyRank(id);
+	set_task(1.1, "Delay_ShowStatsOnSpawn", id);
 }
 
 //------------------
@@ -2898,7 +2828,7 @@ public Delay_ShowStatsOnSpawn(id)
 	get_players(players, num)
 	for (i=0; i<num; i++)
 	{
-		if (is_user_connected(players[i]) && !is_user_bot(players[i]))
+		if (is_user_connected(players[i]))
 		{
 			if (players[i] == id)
 				continue;
@@ -3025,30 +2955,6 @@ public client_disconnect(id)
 	stats_auro_timer[id] = 0;
 	stats_holyguard_timer[id] = 0;
 	stats_ammo_wait[id] = 0;
-	
-	// Disconnected
-	new players[32],
-		num,
-		i,
-		plyname[32],
-		formated_text[501],
-		auth[33];
-	
-	get_players(players, num)
-	get_user_name(id, plyname, 31)
-	
-	for (i = 0; i<num; i++)
-	{
-		if (is_user_connected(players[i]) && !is_user_bot(players[i]))
-		{
-			get_user_authid(id, auth, 32)
-			if (is_user_admin(players[i]))
-				format(formated_text, 500, "Player %s <^"%s^"> has left the game...", plyname, auth)
-			else
-				format(formated_text, 500, "Player %s has left the game...", plyname)
-			PrintToChat(players[i], formated_text)
-		}
-	}
 }
 
 // ============================================================//

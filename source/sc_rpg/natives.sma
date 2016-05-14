@@ -1,8 +1,6 @@
 // API by Xellath
 // Modified by JonnyBoy0719
 
-//#define DebugMode
-
 const MaxClients = 33;
 const MaxSteamIdChars = 35;
 
@@ -74,10 +72,6 @@ public _RegisterReward( Plugin, Params )
 	
 	ArrayPushArray( RewardData[ _Data ], Data );
 	
-	#if defined DebugMode
-		log_amx( "debug: %i CurrentReward", CurrentReward );
-	#endif
-	
 	return ( CurrentReward - 1 );
 }
 
@@ -117,10 +111,6 @@ public _ClientRewardCompleted( Plugin, Params )
 public Status:_GetClientRewardStatus( Plugin, Params )
 {
 	new RewardPointer = get_param( 1 );
-	
-	#if defined DebugMode
-		log_amx( "debug: %i RewardPointer", RewardPointer );
-	#endif
 	
 	new RewardData[ RewardsStruct ];
 	ArrayGetArray( Reward, RewardPointer, RewardData );
@@ -189,30 +179,71 @@ public _GetRewardMaxValue( Plugin, Params )
 public _SetRewardData( Plugin, Params )
 {
 	new Key[ MaxSteamIdChars ],
-		SaveName[ MaxClients ];
+		SaveName[ MaxClients ],
+		Value[ 11 ],
+		table[32];
+	
 	get_string( 1, Key, charsmax( Key ) );
 	get_string( 2, SaveName, charsmax( SaveName ) );
+	format( Value, 10, "%d", get_param( 3 ) );
 	
-	sqlv_connect( VaultHandle );
+	get_cvar_string("rpg_table_api", table, 31)
+	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE `authid` = '%s' AND `reward` = '%s'", table, Key, SaveName);
 	
-	sqlv_set_num_ex( VaultHandle, Key, SaveName, get_param( 3 ) );
+	if (!SQL_Execute(query))
+	{
+		server_print("_SetRewardData not saved");
+		SQL_QueryError(query, sql_error, 127);
+		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", sql_error);
+	} else if (SQL_NumResults(query)) {
+		SQL_QueryAndIgnore(sql,
+			"REPLACE INTO `%s` \
+				(`authid`, `reward`, `value`) \
+				VALUES \
+				('%s', '%s', '%s');",
+			table,
+			Key,
+			SaveName,
+			Value
+		);
+	} else
+		SQL_QueryAndIgnore(sql, "INSERT INTO `%s` (`authid`, `reward`, `value`) VALUES ('%s', '%s', '0')", table, Key, SaveName);
 	
-	sqlv_disconnect( VaultHandle );
+	SQL_FreeHandle(query);
 }
 
 public _GetRewardData( Plugin, Params )
 {
-	new Key[ MaxSteamIdChars ], SaveName[ MaxClients ];
+	new Key[ MaxSteamIdChars ],
+		SaveName[ MaxClients ];
+	
 	get_string( 1, Key, charsmax( Key ) );
 	get_string( 2, SaveName, charsmax( SaveName ) );
 	
-	new Data;
+	new Data,
+		table[32];
+	get_cvar_string("rpg_table_api", table, 31)
+	new Handle:query = SQL_PrepareQuery(sql, "SELECT `reward`, `value` FROM `%s` WHERE (`authid` = '%s')", table, Key);
 	
-	sqlv_connect( VaultHandle );
-	
-	Data = sqlv_get_num_ex( VaultHandle, Key, SaveName );
-	
-	sqlv_disconnect( VaultHandle );
+	// This is a pretty basic code, get all people from the database.
+	if (!SQL_Execute(query))
+	{
+		server_print("_GetRewardData not loaded");
+		SQL_QueryError(query, sql_error, 127);
+		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", sql_error);
+	} else {
+		while (SQL_MoreResults(query))
+		{
+			new reward[33],
+				value[33];
+			SQL_ReadResult(query, 0, reward, 32);
+			SQL_ReadResult(query, 1, value, 32);
+			if (equal(SaveName, reward))
+				Data = str_to_num(value);
+			SQL_NextRow(query);
+		}
+	}
+	SQL_FreeHandle(query);
 	
 	if( !Data )
 		return 0;
