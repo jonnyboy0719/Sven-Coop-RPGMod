@@ -9,7 +9,7 @@ Credits
 `JonnyBoy0719` - Programming  
 `Swampdog` - Testing  
 `Shadow Knight/Dark-fox` - Testing  
-`Daybraker` - Testing  
+`Daybreaker` - Testing  
 
 ###### Custom Sounds
 `Deathmatch Classic`  
