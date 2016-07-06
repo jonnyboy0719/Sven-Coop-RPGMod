@@ -80,7 +80,7 @@
 // Plugin
 #define PLUGIN						"Sven Co-op RPG Mod"
 #define AUTHOR						"JonnyBoy0719"
-#define VERSION						"22.6"
+#define VERSION						"22.7"
 
 // Adverts
 #define AdvertSetup_Max				10
@@ -126,6 +126,8 @@ new stats_increment[33],
 	stats_holyguard_timer[33],
 	stats_doublejump[33],
 	stats_doublejump_temp[33] = 0;
+
+new stats_settings_sound[33];
 
 // Temp values
 new temp_value_medic[33]
@@ -208,6 +210,7 @@ public plugin_init()
 	register_concmd("rpg_skillinfo", "CVAR_SkillsInfo", 0, "Prints the info about the skills")
 	register_concmd("skillsinfo", "CVAR_SkillsInfo", 0, "Prints the info about the skills")
 	register_concmd("challenges", "CVAR_Challenges", 0, "Prints the challenges")
+	register_concmd("rpg_sound", "CVAR_SetSoundSettings", 0, "Disables or Enables the sounds (RPG Mod custom sounds only!)")
 	register_concmd("rpg_commands", "CVAR_CMMNDS", 0, "Prints the available commands")
 
 	// Sets the stuff
@@ -252,9 +255,6 @@ public plugin_init()
 	//-----------------------------
 	glb_AuraIsActivated = false;
 	//glb_HolyGuardIsActivated = false;
-	
-	// Natives & Forwards
-	ForwardClientReward = CreateMultiForward("Forward_ClientEarnedReward", ET_IGNORE, FP_CELL, FP_CELL);
 }
 
 //------------------
@@ -276,6 +276,9 @@ public plugin_cfg()
 //------------------
 public Register_Rewards()
 {
+	// Natives & Forwards
+	ForwardClientReward = CreateMultiForward("Forward_ClientEarnedReward", ET_IGNORE, FP_CELL, FP_CELL);
+
 	Reward = ArrayCreate(RewardsStruct);
 
 	// Time to register the rewards!
@@ -363,6 +366,27 @@ public CVAR_SkillsInfo(id)
 	client_print(id, print_console, "   but you gain more EXP & rewards.");
 	client_print(id, print_console, "===================================================================");
 	client_print(id, print_chat, "Skill information has been printed on the console!")
+}
+
+//------------------
+//	CVAR_SetSoundSettings()
+//------------------
+
+public CVAR_SetSoundSettings(id)
+{
+	new String[33];
+	if (stats_settings_sound[id] >= 1)
+	{
+		String = "Disabled";
+		stats_settings_sound[id] = 0
+	}
+	else
+	{
+		String = "Enabled";
+		stats_settings_sound[id] = 1
+	}
+	
+	client_print(id, print_chat, "[RPG Mod] The custom sounds are now %s!", String);
 }
 
 //------------------
@@ -669,11 +693,11 @@ public hook_grenade(id)
 		switch(random_num(0, 2))
 		{
 			case 0:
-				client_cmd(id, "spk ^"%s^"", SND_AURA01)
+				PlaySound(id, SND_AURA01)
 			case 1:
-				client_cmd(id, "spk ^"%s^"", SND_AURA02)
+				PlaySound(id, SND_AURA02)
 			case 2:
-				client_cmd(id, "spk ^"%s^"", SND_AURA03)
+				PlaySound(id, SND_AURA03)
 		}
 		
 		new iPlayers[32], iNum
@@ -763,7 +787,7 @@ public hook_medic(id)
 		return PLUGIN_CONTINUE;
 	if(stats_holyguard_wait[id] <= 0)
 	{
-		client_cmd(id, "spk ^"%s^"", SND_HOLYGUARD)
+		PlaySound(id, SND_HOLYGUARD)
 
 		if(GetClientRewardStatus(RewardsPointer[ _GodsDoing ], RewardsData[ _GodsDoing ][ id ]) == _In_Progress)
 		{
@@ -1760,6 +1784,7 @@ public BBHelp(id, ShowCommands)
 		client_print ( id, print_console, "/fullreset		--		Full Reset of your stats" )
 		client_print ( id, print_console, "/challenges		--		Shows your challange progress" )
 		client_print ( id, print_console, "/skills			--		Set your skillpoints" )
+		client_print ( id, print_console, "/sound			--		Disables or Enables the sounds (RPG Mod custom sounds only!)" )
 		client_print ( id, print_console, "/skillsinfo		--		Grabs all the information of what the skills do (will print all info on the console!)" )
 		if ( enable_ranking )
 		{
@@ -1771,9 +1796,9 @@ public BBHelp(id, ShowCommands)
 	else
 	{
 		if ( enable_ranking )
-			client_print ( id, print_chat, "Available commands: /version /rank /top10 /reset /fullreset /prestige /skills /challenges" )
+			client_print ( id, print_chat, "Available commands: /version /rank /top10 /reset /fullreset /prestige /skills /challenges /sound" )
 		else
-			client_print ( id, print_chat, "Available commands: /version /reset /fullreset /prestige /skills /challenges" )
+			client_print ( id, print_chat, "Available commands: /version /reset /fullreset /prestige /skills /challenges /sound" )
 	}
 	return PLUGIN_HANDLED
 }
@@ -1805,6 +1830,8 @@ public hook_say(id)
 		RPGSkill(id)
 	else if (equali(arg1[0], "/skillsinfo"))
 		CVAR_SkillsInfo(id)
+	else if (equali(arg1[0], "/sound"))
+		CVAR_SetSoundSettings(id)
 	else if (equali(arg1[0], "/challenges")
 		|| equali(arg1[0], "/rewards")
 		|| equali(arg1[0], "/progress")
@@ -1928,7 +1955,7 @@ public PluginThinkLoop()
 			RegenSystem(id);
 
 			if (stats_auro_wait[id] == 1 || stats_holyguard_wait[id] == 1)
-				client_cmd(id, "spk ^"%s^"", SND_READY)
+				PlaySound(id, SND_READY)
 
 			if (stats_auro_wait[id] > 0)
 				stats_auro_wait[id]--;
@@ -1976,7 +2003,7 @@ public PluginThinkLoop()
 						stats_points[id]++;
 
 						// Play sound
-						client_cmd(id, "spk ^"%s^"", SND_LVLUP)
+						PlaySound(id, SND_LVLUP);
 
 						// Showmenu
 						RPGSkill(id)
@@ -2019,6 +2046,16 @@ public PluginThinkLoop()
 		enable_ranking = false;
 
 	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	PlaySound()
+//------------------
+
+public PlaySound(id, SoundString[])
+{
+	if (stats_settings_sound[id] >= 1)
+		client_cmd(id, "spk ^"%s^"", SoundString)
 }
 
 //------------------
@@ -2159,7 +2196,7 @@ public SetJumping(id)
 	{
 		if(stats_doublejump_temp[id] < stats_doublejump[id] && PlayerNotReachedJumpCap(id))
 		{
-			client_cmd(id, "spk ^"%s^"", SND_JUMP)
+			PlaySound(id, SND_JUMP)
 			IsJumping[id] = true;
 			stats_doublejump_temp[id]++;
 			return PLUGIN_CONTINUE;
@@ -2167,7 +2204,7 @@ public SetJumping(id)
 	}
 	if(stats_doublejump_temp[id] > 0 && (get_entity_flags(id) & FL_ONGROUND))
 	{
-		client_cmd(id, "spk ^"%s^"", SND_JUMP_LAND)
+		PlaySound(id, SND_JUMP_LAND)
 		stats_doublejump_temp[id] = 0;
 		return PLUGIN_CONTINUE;
 	}
@@ -2331,7 +2368,7 @@ public ObtainWeapon_Find(id)
 	}
 	else // if false, run this instead!
 	{
-		client_cmd(id, "spk ^"%s^"", SND_HOLYWEP)
+		PlaySound(id, SND_HOLYWEP)
 		
 		client_print(id, print_chat, "You have been gifted ^"%s^" by the gods!", rpg_get_weapontitle(g_array[rndnum]))
 		
@@ -2800,7 +2837,9 @@ public OnPlayerSpawn(id)
 	if (glb_MapDefined_IsDisabled)
 		return;
 	
-	PlayerHasSpawned(id);
+	// If the player isn't on "Loading..." on the text, we will give the player the health, armor and the other stuff
+	if (!equali(rank_name[id], "Loading..."))
+		PlayerHasSpawned(id);
 	
 	// Checks if the player has spawned (so we don't save the player stats when they join and then just leaves directly after)
 	if ( !HasSpawned[id] )
@@ -2836,6 +2875,8 @@ public HelpOnConnect(id)
 		format(formated_text, 500, "Welcome %s to %s!", plyname, hostname)
 
 	PrintToChat(id, formated_text)
+	
+	set_task(0.8, "PlayerHasSpawned", id);
 
 	BBHelp(id,false)
 }
@@ -3106,6 +3147,7 @@ public LoadDataHandle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
 			points,
 			medals,
 			prestige,
+			settings_sound,
 			exp;
 
 		exp = SQL_FieldNameToNum(Query, "exp");
@@ -3122,6 +3164,7 @@ public LoadDataHandle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
 		points = SQL_FieldNameToNum(Query, "points");
 		medals = SQL_FieldNameToNum(Query, "medals");
 		prestige = SQL_FieldNameToNum(Query, "prestige");
+		settings_sound = SQL_FieldNameToNum(Query, "settings_sound");
 
 		new sql_lvl,
 			sql_exp,
@@ -3136,7 +3179,8 @@ public LoadDataHandle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
 			sql_weapon,
 			sql_points,
 			sql_medals,
-			sql_prestige;
+			sql_prestige,
+			sql_settings_sound;
 
 		while (SQL_MoreResults(Query))
 		{
@@ -3154,6 +3198,7 @@ public LoadDataHandle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
 			sql_points = SQL_ReadResult(Query, points);
 			sql_medals = SQL_ReadResult(Query, medals);
 			sql_prestige = SQL_ReadResult(Query, prestige);
+			sql_settings_sound = SQL_ReadResult(Query, settings_sound);
 
 			//-----
 			stats_health[id] = sql_hps;
@@ -3173,10 +3218,16 @@ public LoadDataHandle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
 			stats_prestige[id] = sql_prestige;
 			stats_points[id] = sql_points;
 			//-----
+			stats_settings_sound[id] = sql_settings_sound;
+			//-----
 
 			SQL_NextRow(Query);
 		}
 	}
+	
+	// Calculate the needed EXP
+	CalculateEXP_Needed(id);
+	
 	return PLUGIN_CONTINUE;
 }
 
@@ -3231,6 +3282,8 @@ public CreatePlayerData(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) 
 	} else {
 		console_print(id, "Adding to database:^nID: ^"%s^"", auth)
 		server_print("Adding to database:^nID: ^"%s^"", auth)
+
+		HasLoadedStats[id] = true;
 
 		new plyname[32]
 		get_user_name(id, plyname, 31)
@@ -3329,6 +3382,9 @@ SaveLevel(id, auth[])
 	if (glb_MapDefined_IsDisabled)
 		return;
 
+	if (!HasLoadedStats[id])
+		return;
+
 	new table[32]
 
 	get_cvar_string("rpg_table", table, 31)
@@ -3344,7 +3400,7 @@ SaveLevel(id, auth[])
 		new plyname[32]
 		get_user_name(id, plyname, 31)
 		SQL_QueryAndIgnore(sql_api,
-			"UPDATE `%s` SET `name` = '%s', `lvl` = %d, `skill_hp` = %i, `skill_sethp` = %i, `skill_armor` = %i, `skill_setarmor` = %i, `skill_doublejump` = %d, `skill_aura` = %d, `skill_holyguard` = %d, `skill_ammo` = %d, `skill_weapon` = %d, `points` = %d, `medals` = %d, `prestige` = %d, `exp` = %d WHERE `authid` = '%s';",
+			"UPDATE `%s` SET `name` = '%s', `lvl` = %d, `skill_hp` = %i, `skill_sethp` = %i, `skill_armor` = %i, `skill_setarmor` = %i, `skill_doublejump` = %d, `skill_aura` = %d, `skill_holyguard` = %d, `skill_ammo` = %d, `skill_weapon` = %d, `points` = %d, `medals` = %d, `prestige` = %d, `exp` = %d, `settings_sound` = %d WHERE `authid` = '%s';",
 			table,
 			plyname,
 			stats_level[id],
@@ -3361,6 +3417,7 @@ SaveLevel(id, auth[])
 			stats_medals[id],
 			stats_prestige[id],
 			stats_xp[id],
+			stats_settings_sound[id],
 			auth
 		)
 	}

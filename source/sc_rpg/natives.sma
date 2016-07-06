@@ -56,6 +56,9 @@ public plugin_natives()
 public _RegisterReward( Plugin, Params )
 {
 	new RewardData[ RewardsStruct ];
+	get_string( 1, RewardData[ _Name ], charsmax( RewardData[ _Name ] ) );
+	get_string( 2, RewardData[ _Description ], charsmax( RewardData[ _Description ] ) );
+	
 	// SQL -- Register it to the system
 	new Name[ MaxSteamIdChars ],
 		Description[ MaxSteamIdChars ],
