@@ -39,12 +39,14 @@ Commands
 `/help` - Prints all the available commands on the console  
 `/challenges` - Shows your challange progress  
 `/reset` - To reset your skills  
+`/rpg` - Shows the admin commands (Only works if you have admin access)  
 `/fullreset` - To reset your level, skills and experience back to 0 (can't be undone!)  
 `/skillsinfo` - Prints the info about the skills  
 `/rpgmod or /version` - To show the version  
 `/top10` - Shows the top10 players  
 `/rank` - Shows your rank  
 `/prestige` - If you're on max level, you will reset to level 0, but you'll gain some new cool shit.  
+`/sound` - Disables or Enables the sounds (RPG Mod custom sounds only!)  
 
 
 Server Commands
@@ -70,6 +72,8 @@ Now open `configs/sql.cfg` and add the new commands:
 `rpg_type			"mysql"`  
 `rpg_dbname			"my_database"`  
 `rpg_table			"sc_rpg"`  
+`rpg_table_api_web		"rpg_rewards_web"`  
+`rpg_table_api			"rpg_rewards"`  
 `rpg_rank_table			"sc_rpg_rank"`  
 
 
