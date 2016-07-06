@@ -80,7 +80,7 @@
 // Plugin
 #define PLUGIN						"Sven Co-op RPG Mod"
 #define AUTHOR						"JonnyBoy0719"
-#define VERSION						"22.5"
+#define VERSION						"22.6"
 
 // Adverts
 #define AdvertSetup_Max				10
@@ -141,11 +141,14 @@ new bool:PlayerIsHurt[33] = false,
 new mysqlx_host,
 	mysqlx_user,
 	mysqlx_db,
+	mysqlx_table,
 	mysqlx_pass,
 	mysqlx_type,
-	Handle:sql,
 	Handle:sql_db,
+	Handle:sql_api,
+	sql_cache[1024],
 	sql_error[128],
+	sql_table[64],
 	sql_errno
 
 new glb_MapDefined_AmmoRegen = 0,
@@ -225,8 +228,9 @@ public plugin_init()
 	mysqlx_pass = register_cvar ("rpg_pass", "rpg_mod"); // The password from the db password
 	mysqlx_type = register_cvar ("rpg_type", "mysql"); // The password from the db type
 	mysqlx_db = register_cvar ("rpg_dbname", "sc_rpg"); // The database name
+	register_cvar ("rpg_table_api_web", "rpg_rewards_web"); // The Challenges API table
 	register_cvar ("rpg_table_api", "rpg_rewards"); // The Challenges API table
-	register_cvar ("rpg_table", "rpg_stats"); // The table where it will save the information
+	mysqlx_table = register_cvar ("rpg_table", "rpg_stats"); // The table where it will save the information
 	register_cvar ("rpg_rank_table", "rpg_ranks"); // The table where it will save the information
 	register_cvar ("rpg_gameinfo", "1"); // This will enable GameInformation to be overwritten.
 	setranking = register_cvar ("rpg_ranking", "1"); // This will enable ranking, or simply disable it.
@@ -248,23 +252,9 @@ public plugin_init()
 	//-----------------------------
 	glb_AuraIsActivated = false;
 	//glb_HolyGuardIsActivated = false;
-
+	
 	// Natives & Forwards
 	ForwardClientReward = CreateMultiForward("Forward_ClientEarnedReward", ET_IGNORE, FP_CELL, FP_CELL);
-
-	Reward = ArrayCreate(RewardsStruct);
-
-	// Time to register the rewards!
-	// To create your own, add them on your own plugin, and use the API.
-	for( new m_iReward; m_iReward < Rewards; m_iReward++ )
-	{
-		RewardsPointer[ m_iReward ] = RegisterReward(
-			RewardsInfo[ m_iReward ][ _Name ],
-			RewardsInfo[ m_iReward ][ _Description ],
-			RewardsInfo[ m_iReward ][ _Save_Name ],
-			RewardsInfo[ m_iReward ][ _Max_Value ]
-			);
-	}
 }
 
 //------------------
@@ -278,6 +268,27 @@ public plugin_cfg()
 	
 	// Lets delay the connection
 	set_task( 2.3, "SQL_Init", 0 );
+	set_task( 4.8, "Register_Rewards", 0 );
+}
+
+//------------------
+//	Register_Rewards()
+//------------------
+public Register_Rewards()
+{
+	Reward = ArrayCreate(RewardsStruct);
+
+	// Time to register the rewards!
+	// To create your own, add them on your own plugin, and use the API.
+	for( new m_iReward; m_iReward < Rewards; m_iReward++ )
+	{
+		RewardsPointer[ m_iReward ] = RegisterReward(
+			RewardsInfo[ m_iReward ][ _Name ],
+			RewardsInfo[ m_iReward ][ _Description ],
+			RewardsInfo[ m_iReward ][ _Save_Name ],
+			RewardsInfo[ m_iReward ][ _Max_Value ]
+		);
+	}
 }
 
 //------------------
@@ -289,10 +300,6 @@ public plugin_end()
 	// Lets disable the plugin (so we don't save and load our information)
 	glb_MapDefined_IsDisabled = true;
 
-	// Lets close down the connection
-	SQL_FreeHandle( sql_db );
-	SQL_FreeHandle( sql );
-
 	// Destroy all arrays
 	new TotalRewards = ArraySize( Reward );
 	new RewardData[ RewardsStruct ];
@@ -303,7 +310,14 @@ public plugin_end()
 		ArrayDestroy( RewardData[ _Data ] );
 	}
 
-	ArrayDestroy( Reward );
+	if (Reward)
+		ArrayDestroy(Reward);
+
+	// Lets close down the connection
+	if (sql_db)
+		SQL_FreeHandle(sql_db);
+	if (sql_api)
+		SQL_FreeHandle(sql_api);
 }
 
 //------------------
@@ -1344,6 +1358,24 @@ public client_putinserver(id)
 
 	PlayerHasSpawned(id)
 
+	if ( !HasLoadedStats[id] )
+		set_task(1.0, "LateJoin", id)
+
+	// The title will take awhile to load, so instead of having a blank text, lets have a 'Loading' text instead.
+	rank_name[id] = "Loading...";
+
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	LateJoin()
+//------------------
+
+public LateJoin(id)
+{
+	if (glb_MapDefined_IsDisabled)
+		return PLUGIN_CONTINUE;
+
 	// If the player has died, lets save his stuff first.
 	new auth[33];
 	get_user_authid( id, auth, 32);
@@ -1351,10 +1383,7 @@ public client_putinserver(id)
 	if ( !HasLoadedStats[id] )
 		CreateStats(id, auth);
 
-	// The title will take awhile to load, so instead of having a blank text, lets have a 'Loading' text instead.
-	rank_name[id] = "Loading...";
-
-	set_task(3.0, "ShowInfo", id)
+	set_task(4.0, "ShowInfo", id)
 
 	return PLUGIN_CONTINUE;
 }
@@ -1378,7 +1407,6 @@ public ShowInfo(id)
 		HasSpawnedFirstTime[id] = true;
 
 	StatsVersion(id)
-	HelpOnConnect(id)
 	if( enable_ranking )
 		set_task(5.0, "ShowStatsOnSpawn", id)
 }
@@ -1423,7 +1451,7 @@ GetCurrentRankTitle(id)
 	get_cvar_string("rpg_rank_table", table, 31)
 
 	// This will read the player LVL and then give him the title he needs
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE `lvl` <= (%d) and `lvl` ORDER BY abs(`lvl` - %d) LIMIT 1", table, stats_level[id], stats_level[id])
+	new Handle:query = SQL_PrepareQuery(sql_api, "SELECT * FROM `%s` WHERE `lvl` <= (%d) and `lvl` ORDER BY abs(`lvl` - %d) LIMIT 1", table, stats_level[id], stats_level[id])
 	if (!SQL_Execute(query))
 	{
 		server_print("query not loaded [title]")
@@ -1440,7 +1468,6 @@ GetCurrentRankTitle(id)
 		}
 	}
 	SQL_FreeHandle(query);
-	return 0;
 }
 
 //------------------
@@ -1584,13 +1611,25 @@ public Prestige(id)
 	// Lets calculate our EXP again.
 	CalculateEXP_Needed(id);
 
-	// Lets grab our new rank title
-	GetCurrentRankTitle(id);
+	// Delay the rank title, else it will bug out and think we still have the highest rank.
+	rank_name[id] = "Loading...";
+	set_task(1.1, "Prestige_DelaySetRank", id);
 
 	// Lets tell everyone that this person have just prestieged!
 	new name[32];
 	get_user_name(id, name, 31);
 	client_print(0, print_chat, "[RPG MOD] %s have prestiged!", name);
+	return PLUGIN_HANDLED
+}
+
+//------------------
+//	Prestige_DelaySetRank()
+//------------------
+
+public Prestige_DelaySetRank(id)
+{
+	// Lets grab our new rank title
+	GetCurrentRankTitle(id);
 	return PLUGIN_HANDLED
 }
 
@@ -1832,7 +1871,7 @@ public ShowTop10(id)
 
 	get_cvar_string("rpg_table", table, 31)
 
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT `name`, `lvl`, `medals`, `prestige` FROM `%s` ORDER BY `prestige` DESC, `lvl` + 0 DESC LIMIT 10", table)
+	new Handle:query = SQL_PrepareQuery(sql_api, "SELECT `name`, `lvl`, `medals`, `prestige` FROM `%s` ORDER BY `prestige` DESC, `lvl` + 0 DESC LIMIT 10", table)
 
 	// This is a pretty basic code, get all people from the database.
 	if (!SQL_Execute(query))
@@ -2844,6 +2883,8 @@ public Delay_ShowStatsOnSpawn(id)
 			PrintToChat(players[i], formated_text)
 		}
 	}
+	
+	HelpOnConnect(id)
 
 	return PLUGIN_HANDLED
 }
@@ -2969,7 +3010,7 @@ public client_disconnect(id)
 //------------------
 public SQL_Init()
 {
-	static szHost[64], szUser[32], szPass[32], szDB[128];
+	static szHost[64], szUser[32], szPass[32], szDB[32];
 	static get_type[12], set_type[12]
 
 	get_pcvar_string( mysqlx_host, szHost, 63 );
@@ -2977,19 +3018,306 @@ public SQL_Init()
 	get_pcvar_string( mysqlx_type, set_type, 11);
 	get_pcvar_string( mysqlx_pass, szPass, 31 );
 	get_pcvar_string( mysqlx_db, szDB, 127 );
+	get_pcvar_string( mysqlx_table, sql_table, 127 );
 	
 	SQL_GetAffinity(get_type, 12);
 	
 	sql_db = SQL_MakeDbTuple( szHost, szUser, szPass, szDB );
 	
-	sql = SQL_Connect(sql_db, sql_errno, sql_error, 127)
+	sql_api = SQL_Connect(sql_db, sql_errno, sql_error, 127);
+	
+	if (sql_api == Empty_Handle)
+		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", sql_error);
+	
+	// check if the table exist
+	formatex( sql_cache, 1023, "show tables like '%s'", sql_table );
+	SQL_ThreadQuery( sql_db, "ShowTableHandle", sql_cache );	
+}
 
-	if (sql == Empty_Handle)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_CON", sql_error)
+//------------------
+//	ShowTableHandle()
+//------------------
+public ShowTableHandle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize)
+{
+	if(FailState==TQUERY_CONNECT_FAILED){
+		log_amx( "[RPGMOD SQL] Could not connect to SQL database." );
+		log_amx( "[RPGMOD SQL] Stats won't be saved" );
+		glb_MapDefined_IsDisabled = true;
+		return PLUGIN_CONTINUE;
+	}
+	else if (FailState == TQUERY_QUERY_FAILED)
+	{
+		log_amx( "[RPGMOD SQL] Query failed." );
+		log_amx( "[RPGMOD SQL] Stats won't be saved" );
+		glb_MapDefined_IsDisabled = true;
+		return PLUGIN_CONTINUE;
+	}
 
-	if (!equali(get_type, set_type))
-		if (!SQL_SetAffinity(set_type))
-			log_amx("Failed to set affinity from %s to %s.", get_type, set_type);
+	if (Errcode)
+	{
+		log_amx( "[RPGMOD SQL] Error on query: %s", Error );
+		log_amx( "[RPGMOD SQL] Stats won't be saved" );
+		glb_MapDefined_IsDisabled = true;
+		return PLUGIN_CONTINUE;
+	}
+
+	if (SQL_NumResults(Query) > 0)
+		log_amx( "[RPGMOD DEBUG] Database table found: %s", sql_table );
+	else
+	{
+		log_amx( "[RPGMOD SQL] Could not find the table: %s", sql_table );
+		log_amx( "[RPGMOD SQL] Stats won't be saved" );
+		glb_MapDefined_IsDisabled = true;
+	}
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	LoadDataHandle()
+//------------------
+public LoadDataHandle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED)
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+
+	new id = Data[0];
+
+	if (SQL_NumResults(Query) >= 1)
+	{
+		new auth_self[33];
+		get_user_authid(id, auth_self, 32);
+		server_print("loaded stats for:^nID: ^"%s^"", auth_self)
+		HasLoadedStats[id] = true;
+
+		new hps,
+			hps_set,
+			armor,
+			armor_set,
+			lvl,
+			ammo,
+			holyguard,
+			doublejump,
+			auro,
+			weapon,
+			points,
+			medals,
+			prestige,
+			exp;
+
+		exp = SQL_FieldNameToNum(Query, "exp");
+		lvl = SQL_FieldNameToNum(Query, "lvl");
+		hps = SQL_FieldNameToNum(Query, "skill_hp");
+		hps_set = SQL_FieldNameToNum(Query, "skill_sethp");
+		armor = SQL_FieldNameToNum(Query, "skill_armor");
+		armor_set = SQL_FieldNameToNum(Query, "skill_setarmor");
+		holyguard = SQL_FieldNameToNum(Query, "skill_holyguard");
+		ammo = SQL_FieldNameToNum(Query, "skill_ammo");
+		doublejump = SQL_FieldNameToNum(Query, "skill_doublejump");
+		auro = SQL_FieldNameToNum(Query, "skill_aura");
+		weapon = SQL_FieldNameToNum(Query, "skill_weapon");
+		points = SQL_FieldNameToNum(Query, "points");
+		medals = SQL_FieldNameToNum(Query, "medals");
+		prestige = SQL_FieldNameToNum(Query, "prestige");
+
+		new sql_lvl,
+			sql_exp,
+			sql_ammo,
+			sql_hps,
+			sql_hps_set,
+			sql_armor,
+			sql_armor_set,
+			sql_holyguard,
+			sql_doublejump,
+			sql_auro,
+			sql_weapon,
+			sql_points,
+			sql_medals,
+			sql_prestige;
+
+		while (SQL_MoreResults(Query))
+		{
+			sql_lvl = SQL_ReadResult(Query, lvl);
+			sql_exp = SQL_ReadResult(Query, exp);
+			sql_ammo = SQL_ReadResult(Query, ammo);
+			sql_hps = SQL_ReadResult(Query, hps);
+			sql_hps_set = SQL_ReadResult(Query, hps_set);
+			sql_armor = SQL_ReadResult(Query, armor);
+			sql_armor_set = SQL_ReadResult(Query, armor_set);
+			sql_holyguard = SQL_ReadResult(Query, holyguard);
+			sql_doublejump = SQL_ReadResult(Query, doublejump);
+			sql_auro = SQL_ReadResult(Query, auro);
+			sql_weapon = SQL_ReadResult(Query, weapon);
+			sql_points = SQL_ReadResult(Query, points);
+			sql_medals = SQL_ReadResult(Query, medals);
+			sql_prestige = SQL_ReadResult(Query, prestige);
+
+			//-----
+			stats_health[id] = sql_hps;
+			stats_health_set[id] = sql_hps_set;
+			stats_armor[id] = sql_armor;
+			stats_armor_set[id] = sql_armor_set;
+			stats_holyguard[id] = sql_holyguard;
+			stats_doublejump[id] = sql_doublejump;
+			stats_auro[id] = sql_auro;
+			stats_ammo[id] = sql_ammo;
+			stats_randomweapon[id] = sql_weapon;
+			//-----
+			stats_level[id] = sql_lvl;
+			stats_xp[id] = sql_exp;
+			//-----
+			stats_medals[id] = sql_medals;
+			stats_prestige[id] = sql_prestige;
+			stats_points[id] = sql_points;
+			//-----
+
+			SQL_NextRow(Query);
+		}
+	}
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	LoadDataTitle()
+//------------------
+public LoadDataTitle(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED)
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+
+	new id = Data[0];
+
+	while (SQL_MoreResults(Query))
+	{
+		// Not the best code, this needs improvements...
+		new ranktitle[185]
+		SQL_ReadResult(Query, 1, ranktitle, 31)
+		// This only gets the max players on the database
+		top_rank = rank_max
+		// This reads the players EXP, and then checks with other players EXP to get the players rank
+		GetPosition(id);
+		// Sets the title
+		rank_name[id] = ranktitle;
+		SQL_NextRow(Query);
+	}
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	CreatePlayerData()
+//------------------
+public CreatePlayerData(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED)
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+
+	new id = Data[0];
+	new auth[33];
+	get_user_authid(id, auth, 32);
+
+	if (SQL_NumResults(Query)) {
+		// If we already created one, lets continnue
+	} else {
+		console_print(id, "Adding to database:^nID: ^"%s^"", auth)
+		server_print("Adding to database:^nID: ^"%s^"", auth)
+
+		new plyname[32]
+		get_user_name(id, plyname, 31)
+
+		formatex(sql_cache, 1023, "INSERT INTO `%s` (`authid`, `name`) VALUES ('%s', '%s')", sql_table, auth, plyname);
+		new send_id[1];
+		send_id[0] = id;
+		SQL_ThreadQuery(sql_db, "QueryHandle", sql_cache);
+	}
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	QueryHandle()
+//------------------
+public QueryHandle( FailState, Handle:Query, Error[], Errcode, Data[], DataSize ) {
+	// lots of error checking
+	if ( FailState == TQUERY_CONNECT_FAILED ) {
+		log_amx( "[RPGMOD SQL] Could not connect to SQL database." );
+		return set_fail_state("[RPGMOD SQL] Could not connect to SQL database.");
+	}
+	else if ( FailState == TQUERY_QUERY_FAILED ) {
+		new sql[1024];
+		SQL_GetQueryString ( Query, sql, 1024 );
+		log_amx( "[RPGMOD SQL] SQL Query failed: %s", sql );
+		return set_fail_state("[RPGMOD SQL] SQL Query failed.");
+	}
+
+	if ( Errcode )
+		return log_amx( "[RPGMOD SQL] SQL Error on query: %s", Error );
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	LoadDataPosition()
+//------------------
+public LoadDataPosition(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED)
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+
+	new id = Data[0];
+	
+	static Position;
+
+	// If used, lets reset it
+	Position = 0;
+
+	while (SQL_MoreResults(Query))
+	{
+		Position++
+		new authid[33]
+		SQL_ReadResult(Query, 0, authid, 32)
+		new auth_self[33];
+		get_user_authid(id, auth_self, 32);
+		if (equal(auth_self, authid))
+			ply_rank[id] = Position;
+		SQL_NextRow(Query);
+	}
+	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	LoadDataRank()
+//------------------
+public LoadDataRank(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) {
+	if (FailState == TQUERY_CONNECT_FAILED)
+		return set_fail_state("Could not connect to SQL database.")
+	else if (FailState == TQUERY_QUERY_FAILED)
+		return set_fail_state("Query failed.")
+
+	if (Errcode)
+		return log_amx("Error on query: %s",Error)
+	
+	// Reset the max rank
+	rank_max = 0;
+
+	while (SQL_MoreResults(Query))
+	{
+		rank_max++;
+		SQL_NextRow(Query);
+	}
+	return PLUGIN_CONTINUE;
 }
 
 //------------------
@@ -2998,11 +3326,14 @@ public SQL_Init()
 
 SaveLevel(id, auth[])
 {
+	if (glb_MapDefined_IsDisabled)
+		return;
+
 	new table[32]
 
 	get_cvar_string("rpg_table", table, 31)
 
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE (`authid` = '%s')", table, auth)
+	new Handle:query = SQL_PrepareQuery(sql_api, "SELECT * FROM `%s` WHERE (`authid` = '%s')", table, auth)
 
 	if (!SQL_Execute(query))
 	{
@@ -3012,7 +3343,7 @@ SaveLevel(id, auth[])
 	} else {
 		new plyname[32]
 		get_user_name(id, plyname, 31)
-		SQL_QueryAndIgnore(sql,
+		SQL_QueryAndIgnore(sql_api,
 			"UPDATE `%s` SET `name` = '%s', `lvl` = %d, `skill_hp` = %i, `skill_sethp` = %i, `skill_armor` = %i, `skill_setarmor` = %i, `skill_doublejump` = %d, `skill_aura` = %d, `skill_holyguard` = %d, `skill_ammo` = %d, `skill_weapon` = %d, `points` = %d, `medals` = %d, `prestige` = %d, `exp` = %d WHERE `authid` = '%s';",
 			table,
 			plyname,
@@ -3043,134 +3374,20 @@ SaveLevel(id, auth[])
 
 LoadLevel(id, auth[], LoadMyStats = true)
 {
-	// This will fix some minor bugs when joining.
-	rank_max = 0
-
-	new table[32]
-	get_cvar_string("rpg_table", table, 31)
+	if (glb_MapDefined_IsDisabled)
+		return;
 
 	if (LoadMyStats)
 	{
-		new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE (`authid` = '%s')", table, auth)
-		if (!SQL_Execute(query))
-		{
-			server_print("LoadStats query has stopped due to errors.")
-			SQL_QueryError(query, sql_error, 127)
-			server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", sql_error)
-		} else if (SQL_NumResults(query)) {
-			server_print("loaded stats for:^nID: ^"%s^"", auth)
-
-			HasLoadedStats[id] = true;
-
-			new hps,
-				hps_set,
-				armor,
-				armor_set,
-				lvl,
-				ammo,
-				holyguard,
-				doublejump,
-				auro,
-				weapon,
-				points,
-				medals,
-				prestige,
-				exp;
-
-			exp = SQL_FieldNameToNum(query, "exp");
-			lvl = SQL_FieldNameToNum(query, "lvl");
-			hps = SQL_FieldNameToNum(query, "skill_hp");
-			hps_set = SQL_FieldNameToNum(query, "skill_sethp");
-			armor = SQL_FieldNameToNum(query, "skill_armor");
-			armor_set = SQL_FieldNameToNum(query, "skill_setarmor");
-			holyguard = SQL_FieldNameToNum(query, "skill_holyguard");
-			ammo = SQL_FieldNameToNum(query, "skill_ammo");
-			doublejump = SQL_FieldNameToNum(query, "skill_doublejump");
-			auro = SQL_FieldNameToNum(query, "skill_aura");
-			weapon = SQL_FieldNameToNum(query, "skill_weapon");
-			points = SQL_FieldNameToNum(query, "points");
-			medals = SQL_FieldNameToNum(query, "medals");
-			prestige = SQL_FieldNameToNum(query, "prestige");
-
-			new sql_lvl,
-				sql_exp,
-				sql_ammo,
-				sql_hps,
-				sql_hps_set,
-				sql_armor,
-				sql_armor_set,
-				sql_holyguard,
-				sql_doublejump,
-				sql_auro,
-				sql_weapon,
-				sql_points,
-				sql_medals,
-				sql_prestige;
-
-			while (SQL_MoreResults(query))
-			{
-				sql_lvl = SQL_ReadResult(query, lvl);
-				sql_exp = SQL_ReadResult(query, exp);
-				sql_ammo = SQL_ReadResult(query, ammo);
-				sql_hps = SQL_ReadResult(query, hps);
-				sql_hps_set = SQL_ReadResult(query, hps_set);
-				sql_armor = SQL_ReadResult(query, armor);
-				sql_armor_set = SQL_ReadResult(query, armor_set);
-				sql_holyguard = SQL_ReadResult(query, holyguard);
-				sql_doublejump = SQL_ReadResult(query, doublejump);
-				sql_auro = SQL_ReadResult(query, auro);
-				sql_weapon = SQL_ReadResult(query, weapon);
-				sql_points = SQL_ReadResult(query, points);
-				sql_medals = SQL_ReadResult(query, medals);
-				sql_prestige = SQL_ReadResult(query, prestige);
-
-				//-----
-				stats_health[id] = sql_hps;
-				stats_health_set[id] = sql_hps_set;
-				stats_armor[id] = sql_armor;
-				stats_armor_set[id] = sql_armor_set;
-				stats_holyguard[id] = sql_holyguard;
-				stats_doublejump[id] = sql_doublejump;
-				stats_auro[id] = sql_auro;
-				stats_ammo[id] = sql_ammo;
-				stats_randomweapon[id] = sql_weapon;
-				//-----
-				stats_level[id] = sql_lvl;
-				stats_xp[id] = sql_exp;
-				//-----
-				stats_medals[id] = sql_medals;
-				stats_prestige[id] = sql_prestige;
-				stats_points[id] = sql_points;
-				//-----
-
-				SQL_NextRow(query);
-			}
-		} else {
-			// The user doesn't exist, lets stop the process.
-			SQL_FreeHandle(query);
-			return;
-		}
-		SQL_FreeHandle(query);
+		formatex( sql_cache, 1023, "SELECT * FROM `%s` WHERE (`authid` = '%s')", sql_table, auth);
+		new send_id[1];
+		send_id[0] = id;
+		SQL_ThreadQuery(sql_db, "LoadDataHandle", sql_cache, send_id, 1);
 	}
 	else
 	{
-		new Handle:query = SQL_PrepareQuery(sql, "SELECT `authid` FROM `%s`", table)
-
-		// This is a pretty basic code, get all people from the database.
-		if (!SQL_Execute(query))
-		{
-			server_print("rpg_table doesn't exist?")
-			SQL_QueryError(query, sql_error, 127)
-			server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", sql_error)
-		} else {
-			while (SQL_MoreResults(query))
-			{
-				rank_max++;
-				SQL_NextRow(query);
-			}
-		}
-		SQL_FreeHandle(query);
-
+		formatex( sql_cache, 1023, "SELECT `authid` FROM `%s`", sql_table);
+		SQL_ThreadQuery(sql_db, "LoadDataRank", sql_cache);
 		set_task(0.5, "DisplayLevel", id)
 	}
 }
@@ -3183,32 +3400,11 @@ public DisplayLevel(id)
 {
 	new table[32]
 	get_cvar_string("rpg_rank_table", table, 31)
-
-	// This will read the player LVL and then give him the title he needs
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE `lvl` <= (%d) and `lvl` ORDER BY abs(`lvl` - %d) LIMIT 1", table, stats_level[id], stats_level[id])
-	if (!SQL_Execute(query))
-	{
-		server_print("query not loaded [DisplayLevel]")
-		SQL_QueryError(query, sql_error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", sql_error)
-	} else {
-		while (SQL_MoreResults(query))
-		{
-			// Not the best code, this needs improvements...
-			new ranktitle[185]
-			SQL_ReadResult(query, 1, ranktitle, 31)
-			// This only gets the max players on the database
-			top_rank = rank_max
-			// This reads the players EXP, and then checks with other players EXP to get the players rank
-			new Position = GetPosition(id);
-			ply_rank[id] = Position;
-			// Sets the title
-			rank_name[id] = ranktitle;
-			SQL_NextRow(query);
-		}
-	}
-
-	SQL_FreeHandle(query);
+	
+	formatex( sql_cache, 1023, "SELECT * FROM `%s` WHERE `lvl` <= (%d) and `lvl` ORDER BY abs(`lvl` - %d) LIMIT 1", table, stats_level[id], stats_level[id]);
+	new send_id[1];
+	send_id[0] = id;
+	SQL_ThreadQuery(sql_db, "LoadDataTitle", sql_cache, send_id, 1);
 }
 
 //------------------
@@ -3217,38 +3413,10 @@ public DisplayLevel(id)
 
 GetPosition(id)
 {
-	static Position;
-
-	// If used, lets reset it
-	Position = 0;
-
-	new table[32]
-
-	get_cvar_string("rpg_table", table, 31)
-
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT `authid` FROM `%s` ORDER BY `prestige` DESC, `lvl` + 0 DESC", table)
-
-	// This is a pretty basic code, get all people from the database.
-	if (!SQL_Execute(query))
-	{
-		server_print("GetPosition not loaded")
-		SQL_QueryError(query, sql_error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", sql_error)
-	} else {
-		while (SQL_MoreResults(query))
-		{
-			Position++
-			new authid[33]
-			SQL_ReadResult(query, 0, authid, 32)
-			new auth_self[33];
-			get_user_authid(id, auth_self, 32);
-			if (equal(auth_self, authid))
-				return Position;
-			SQL_NextRow(query);
-		}
-	}
-	SQL_FreeHandle(query);
-	return 0;
+	formatex( sql_cache, 1023, "SELECT `authid` FROM `%s` ORDER BY `prestige` DESC, `lvl` + 0 DESC", sql_table);
+	new send_id[1];
+	send_id[0] = id;
+	SQL_ThreadQuery(sql_db, "LoadDataPosition", sql_cache, send_id, 1);
 }
 
 //------------------
@@ -3257,32 +3425,13 @@ GetPosition(id)
 
 CreateStats(id, auth[])
 {
-	new table[32]
-
-	get_cvar_string("rpg_table", table, 31)
-
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE (`authid` = '%s')", table, auth)
-
-	if (!SQL_Execute(query))
-	{
-		server_print("query not saved")
-		SQL_QueryError(query, sql_error, 127)
-		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", sql_error)
-	} else if (SQL_NumResults(query)) {
-		// If we already created one, lets continnue
-	} else {
-		console_print(id, "Adding to database:^nID: ^"%s^"", auth)
-		server_print("Adding to database:^nID: ^"%s^"", auth)
-
-		new plyname[32]
-		get_user_name(id,plyname,31)
-
-		SQL_QueryAndIgnore(sql, "INSERT INTO `%s` (`authid`, `name`) VALUES ('%s', '%s')", table, auth, plyname)
-	}
-
-	HasLoadedStats[id] = true;
-
-	SQL_FreeHandle(query)
+	if (glb_MapDefined_IsDisabled)
+		return;
+	
+	formatex( sql_cache, 1023, "SELECT * FROM `%s` WHERE (`authid` = '%s')", sql_table, auth);
+	new send_id[1];
+	send_id[0] = id;
+	SQL_ThreadQuery(sql_db, "CreatePlayerData", sql_cache, send_id, 1);
 }
 
 //------------------

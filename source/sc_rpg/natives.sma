@@ -56,8 +56,38 @@ public plugin_natives()
 public _RegisterReward( Plugin, Params )
 {
 	new RewardData[ RewardsStruct ];
-	get_string( 1, RewardData[ _Name ], charsmax( RewardData[ _Name ] ) );
-	get_string( 2, RewardData[ _Description ], charsmax( RewardData[ _Description ] ) );
+	// SQL -- Register it to the system
+	new Name[ MaxSteamIdChars ],
+		Description[ MaxSteamIdChars ],
+		SaveName[ MaxClients ],
+		Value[ 11 ],
+		table[32];
+	
+	get_string( 1, Name, charsmax( Name ) );
+	get_string( 2, Description, charsmax( Description ) );
+	get_string( 3, SaveName, charsmax( SaveName ) );
+	format( Value, 10, "%d", get_param( 4 ) );
+	get_cvar_string("rpg_table_api_web", table, 31);
+	
+	// Escape strings
+	replace_all( Name, charsmax(Name), "`", "\`")
+	replace_all( Name, charsmax(Name), "'", "\'")
+	replace_all( Name, charsmax(Name), "\", "\\");
+	replace_all( Description, charsmax(Description), "`", "\`")
+	replace_all( Description, charsmax(Description), "'", "\'")
+	replace_all( Description, charsmax(Description), "\", "\\");
+
+	new Handle:query = SQL_PrepareQuery(sql_api, "SELECT * FROM `%s` WHERE `reward` = '%s'", table, SaveName);
+	if (!SQL_Execute(query))
+	{
+		server_print("_RegisterReward not saved");
+		SQL_QueryError(query, sql_error, 127);
+		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", sql_error);
+	} else if (!SQL_NumResults(query))
+		SQL_QueryAndIgnore(sql_api, "INSERT INTO `%s` (`reward`, `name`, `desc`, `value`) VALUES ('%s', '%s', '%s', '%s')", table, SaveName, Name, Description, Value);
+	
+	SQL_FreeHandle(query);
+	// SQL END
 	
 	RewardData[ _Data ] = _:ArrayCreate( RewardDataStruct );
 	
@@ -188,7 +218,8 @@ public _SetRewardData( Plugin, Params )
 	format( Value, 10, "%d", get_param( 3 ) );
 	
 	get_cvar_string("rpg_table_api", table, 31)
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT * FROM `%s` WHERE `authid` = '%s' AND `reward` = '%s'", table, Key, SaveName);
+
+	new Handle:query = SQL_PrepareQuery(sql_api, "SELECT * FROM `%s` WHERE `authid` = '%s' AND `reward` = '%s'", table, Key, SaveName);
 	
 	if (!SQL_Execute(query))
 	{
@@ -196,7 +227,7 @@ public _SetRewardData( Plugin, Params )
 		SQL_QueryError(query, sql_error, 127);
 		server_print("[AMXX] %L", LANG_SERVER, "SQL_CANT_LOAD_ADMINS", sql_error);
 	} else if (SQL_NumResults(query)) {
-		SQL_QueryAndIgnore(sql,
+		SQL_QueryAndIgnore(sql_api,
 			"REPLACE INTO `%s` \
 				(`authid`, `reward`, `value`) \
 				VALUES \
@@ -207,7 +238,7 @@ public _SetRewardData( Plugin, Params )
 			Value
 		);
 	} else
-		SQL_QueryAndIgnore(sql, "INSERT INTO `%s` (`authid`, `reward`, `value`) VALUES ('%s', '%s', '0')", table, Key, SaveName);
+		SQL_QueryAndIgnore(sql_api, "INSERT INTO `%s` (`authid`, `reward`, `value`) VALUES ('%s', '%s', '0')", table, Key, SaveName);
 	
 	SQL_FreeHandle(query);
 }
@@ -222,8 +253,10 @@ public _GetRewardData( Plugin, Params )
 	
 	new Data,
 		table[32];
+
 	get_cvar_string("rpg_table_api", table, 31)
-	new Handle:query = SQL_PrepareQuery(sql, "SELECT `reward`, `value` FROM `%s` WHERE (`authid` = '%s')", table, Key);
+	
+	new Handle:query = SQL_PrepareQuery(sql_api, "SELECT `reward`, `value` FROM `%s` WHERE (`authid` = '%s')", table, Key);
 	
 	// This is a pretty basic code, get all people from the database.
 	if (!SQL_Execute(query))

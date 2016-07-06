@@ -47,13 +47,7 @@ void CVAR_GrabWeapon( const CCommand@ args )
 		PlayerData@ data = cast<PlayerData@>(g_PlayerData[szSteamId]);
 		if (data.sKey == GetKey)
 		{
-			bool validItem = false;
-			if (args[0].Find("weapon_") == 0) validItem = true;
-			if (args[0].Find("ammo_") == 0) validItem = true;
-			if (args[0].Find("item_") == 0) validItem = true;
-				
-			if (validItem)
-				pPlayer.GiveNamedItem(GetWeapon, 0, 0);
+			pPlayer.GiveNamedItem(GetWeapon, 0, 0);
 			g_Scheduler.SetTimeout("DeleteKey", 0.5f, g_EngineFuncs.IndexOfEdict(pPlayer.edict()));
 		}
 	}
@@ -62,10 +56,6 @@ void CVAR_GrabWeapon( const CCommand@ args )
 void DeleteKey(int &in pIndex)
 {
 	CBasePlayer@ pPlayer = g_PlayerFuncs.FindPlayerByIndex(pIndex);
-	
-	if (pPlayer is null)
-		return;
-	
 	string szSteamId = g_EngineFuncs.GetPlayerAuthId( pPlayer.edict() );
 	if(g_PlayerData.exists(szSteamId))
 		g_PlayerData.delete(szSteamId);
