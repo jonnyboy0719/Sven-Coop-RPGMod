@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS `rpg_stats` (
   `date` int(11) DEFAULT '1112214021',
   `online` varchar(50) DEFAULT 'false',
   `country` varchar(50) DEFAULT NULL,
+  `settings_sound` int(11) DEFAULT '1' COMMENT 'Sets the value if the player should hear the sounds playing.',
   `gametime` int(11) DEFAULT '0',
   PRIMARY KEY (`authid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
