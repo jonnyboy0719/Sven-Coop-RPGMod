@@ -1385,7 +1385,7 @@ public client_putinserver(id)
 	PlayerHasSpawned(id)
 
 	if ( !HasLoadedStats[id] )
-		set_task(1.0, "LateJoin", id)
+		set_task(3.8, "LateJoin", id)
 
 	// The title will take awhile to load, so instead of having a blank text, lets have a 'Loading' text instead.
 	rank_name[id] = "Loading...";
@@ -3293,9 +3293,7 @@ public CreatePlayerData(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) 
 	new auth[33];
 	get_user_authid(id, auth, 32);
 
-	if (SQL_NumResults(Query)) {
-		// If we already created one, lets continnue
-	} else {
+	if (!SQL_NumResults(Query)) {
 		console_print(id, "Adding to database:^nID: ^"%s^"", auth)
 		server_print("Adding to database:^nID: ^"%s^"", auth)
 
@@ -3303,6 +3301,11 @@ public CreatePlayerData(FailState,Handle:Query,Error[],Errcode,Data[],DataSize) 
 
 		new plyname[32]
 		get_user_name(id, plyname, 31)
+
+		// Escape strings
+		replace_all( plyname, charsmax(plyname), "`", "\`")
+		replace_all( plyname, charsmax(plyname), "'", "\'")
+		replace_all( plyname, charsmax(plyname), "\", "\\");
 
 		formatex(sql_cache, 1023, "INSERT INTO `%s` (`authid`, `name`) VALUES ('%s', '%s')", sql_table, auth, plyname);
 		new send_id[1];
