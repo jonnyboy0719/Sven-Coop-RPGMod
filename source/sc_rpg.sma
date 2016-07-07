@@ -106,6 +106,8 @@ new stats_increment[33],
 	stats_xp_temp[33],	// Used only for the stats_xp_cap
 	stats_xp_bonus[33],
 	stats_neededxp[33],
+	stats_neededxp_temp[33],
+	bool:IsWaiting[33],
 	stats_level[33] = -1,
 	stats_medals[33],
 	stats_prestige[33],
@@ -1977,11 +1979,15 @@ public PluginThinkLoop()
 					&& !glb_MapDefined_IsBlacklisted)
 				{
 					CalculateEXP_Add(id);
-					if(stats_xp[id] >= stats_neededxp[id])
+					if(stats_xp[id] >= stats_neededxp[id] && !IsWaiting[id])
 					{
 						// Lets grab the exp & needed exp and save them to temp values
 						new temp_exp = stats_xp[id];
-						new temp_neededexp = stats_neededxp[id];
+						stats_neededxp_temp[id] = stats_neededxp[id];
+						
+						// Wait before we run this again.
+						IsWaiting[id] = true;
+						set_task(1.8, "PlayerStopWaiting", id);
 
 						// Reset the EXP, calculate the new needed EXP and increase our level.
 						stats_xp[id] = 0;
@@ -1993,8 +1999,8 @@ public PluginThinkLoop()
 						// If our current EXP goes over the needed EXP, lets remove the EXP we need, so we get correct number of EXP we have left.
 						// Example:
 						// temp_exp - temp_neededexp = leftover
-						if (temp_exp > temp_neededexp)
-							stats_xp[id] = temp_exp - temp_neededexp;
+						if (temp_exp > stats_neededxp_temp[id] && stats_neededxp[id] != stats_neededxp_temp[id])
+							stats_xp[id] = temp_exp - stats_neededxp_temp[id];
 
 						// Lets grab our new rank title
 						GetCurrentRankTitle(id);
@@ -2046,6 +2052,16 @@ public PluginThinkLoop()
 		enable_ranking = false;
 
 	return PLUGIN_CONTINUE;
+}
+
+//------------------
+//	PlayerStopWaiting()
+//------------------
+
+public PlayerStopWaiting(id)
+{
+	CalculateEXP_Needed(id);
+	IsWaiting[id] = false;
 }
 
 //------------------
