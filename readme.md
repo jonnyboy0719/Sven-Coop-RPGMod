@@ -7,6 +7,7 @@ Credits
 -----------
 
 `JonnyBoy0719` - Programming  
+`Xellath` - API  
 `Swampdog` - Testing  
 `Shadow Knight/Dark-fox` - Testing  
 `Daybreaker` - Testing  
