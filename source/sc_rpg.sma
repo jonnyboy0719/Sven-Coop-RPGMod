@@ -187,6 +187,78 @@ new g_array[80][228];
 #include "sc_rpg/rewards.sma"
 
 //------------------
+//	Skills Setup
+//------------------
+
+enum _:Skills
+{
+	SK_HEALTH = 0,
+	SK_ARMOR,
+	SK_HEALTH_REGEN,
+	SK_ARMOR_REGEN,
+	SK_AMMO,
+	SK_JUMP,
+	SK_WEAPON,
+	SK_AURA,
+	SK_HOLYGUARD
+};
+
+enum _:SkillsStructData
+{
+    _Name[ MaxClients ],
+    _Value
+};
+
+new const SkillsInfo[ Skills ][ SkillsStructData ] = 
+{
+	// SK_HEALTH
+	{
+		AB_HEALTH,
+		AB_HEALTH_MAX
+	},
+	// SK_ARMOR
+	{
+		AB_ARMOR,
+		AB_ARMOR_MAX
+	},
+	// SK_HEALTH_REGEN
+	{
+		AB_HEALTH_REGEN,
+		AB_HEALTH_REGEN_MAX
+	},
+	// SK_ARMOR_REGEN
+	{
+		AB_ARMOR_REGEN,
+		AB_ARMOR_REGEN_MAX
+	},
+	// SK_AMMO
+	{
+		AB_AMMO,
+		AB_AMMO_MAX
+	},
+	// SK_JUMP
+	{
+		AB_DOUBLEJUMP,
+		AB_DOUBLEJUMP_MAX
+	},
+	// SK_WEAPON
+	{
+		AB_WEAPON,
+		AB_WEAPON_MAX
+	},
+	// SK_AURA
+	{
+		AB_AURA,
+		AB_AURA_MAX
+	},
+	// SK_HOLYGUARD
+	{
+		AB_HOLYGUARD,
+		AB_HOLYGUARD_MAX
+	}
+};
+
+//------------------
 //	plugin_init()
 //------------------
 
@@ -266,7 +338,7 @@ public plugin_init()
 public plugin_cfg()
 {
 	// Check if the map is blacklisted
-	CheckIfBlacklisted();
+	CheckIfBlacklisted(false);
 	
 	// Lets delay the connection
 	set_task( 2.3, "SQL_Init", 0 );
@@ -620,7 +692,7 @@ public CVAR_ReloadBlacklist(id, level, cid)
 	get_user_authid(id, authid, 31)
 	get_user_name(id, name, 31)
 
-	CheckIfBlacklisted();
+	CheckIfBlacklisted(true);
 
 	client_print(id, print_console, "The blacklist has been reloaded!")
 
@@ -940,213 +1012,94 @@ public RPGIncrementChoice( id, key )
 
 public RPGSkillChoice( id, key )
 {
-	// We won't want to apply negative points.
+	// We don't want to apply negative points.
 	if (stats_increment[id] > stats_points[id] && stats_points[id] > 0)
 	{
 		RPGSkill(id)
 		return PLUGIN_HANDLED;
 	}
 
-	new auth[33];
+	new auth[33],
+		temp_value_set;
 	get_user_authid(id, auth, 32);
-	switch(key)
+
+	if (key < 9)
 	{
-		case 0:
+		// Lets grab the value needed
+		switch(key)
 		{
-			if(stats_points[id]>0)
+			case 0:
+				temp_value_set = stats_health_set[id];
+			case 1:
+				temp_value_set = stats_armor_set[id];
+			case 2:
+				temp_value_set = stats_health[id];
+			case 3:
+				temp_value_set = stats_armor[id];
+			case 4:
+				temp_value_set = stats_ammo[id];
+			case 5:
+				temp_value_set = stats_doublejump[id];
+			case 6:
+				temp_value_set = stats_randomweapon[id];
+			case 7:
+				temp_value_set = stats_auro[id];
+			case 8:
+				temp_value_set = stats_holyguard[id];
+		}
+
+		if (stats_points[id] > 0)
+		{
+			if (temp_value_set < SkillsInfo[ key ][ _Value ])
 			{
-				if(stats_health_set[id]<AB_HEALTH_MAX)
+				if (stats_increment[id] + temp_value_set >= SkillsInfo[ key ][ _Value ])
+					stats_increment[id] = SkillsInfo[ key ][ _Value ] - temp_value_set;
+				stats_points[id] -= stats_increment[id];
+
+				switch(key)
 				{
-					if (stats_increment[id] + stats_health_set[id] >= AB_HEALTH_MAX)
-						stats_increment[id] = AB_HEALTH_MAX - stats_health_set[id];
-					stats_points[id] -= stats_increment[id];
-					stats_health_set[id] += stats_increment[id];
-					client_print(id,print_chat,"[RPG MOD] You spent %i Skillpoints to enhance your %s to Level %i!", stats_increment[id], AB_HEALTH, stats_health_set[id]);
-					SaveLevel(id, auth)
-					if(is_user_alive(id))
-						set_user_health(id, get_user_health(id) + stats_increment[id]);
+					case 0:
+						temp_value_set = stats_health_set[id] += stats_increment[id];
+					case 1:
+						temp_value_set = stats_armor_set[id] += stats_increment[id];
+					case 2:
+						temp_value_set = stats_health[id] += stats_increment[id];
+					case 3:
+						temp_value_set = stats_armor[id] += stats_increment[id];
+					case 4:
+						temp_value_set = stats_ammo[id] += stats_increment[id];
+					case 5:
+						temp_value_set = stats_doublejump[id] += stats_increment[id];
+					case 6:
+						temp_value_set = stats_randomweapon[id] += stats_increment[id];
+					case 7:
+						temp_value_set = stats_auro[id] += stats_increment[id];
+					case 8:
+						temp_value_set = stats_holyguard[id] += stats_increment[id];
 				}
-				else
-					client_print(id,print_chat,"[RPG MOD] You have mastered your %s already.",AB_HEALTH)
-				if(stats_points[id]>0)
-					RPGSkill(id);
+
+				client_print(id, print_chat, "[RPG MOD] You spent %i Skillpoints to enhance '%s' to Level %i!", stats_increment[id], SkillsInfo[ key ][ _Name ], temp_value_set);
+				SaveLevel(id, auth);
+
+				if (is_user_alive(id))
+				{
+					switch(key)
+					{
+						case 0:
+							set_user_health(id, get_user_health(id) + stats_increment[id]);
+						case 1:
+							set_user_armor(id,get_user_armor(id)+stats_increment[id]);
+					}
+				}
 			}
 			else
-				client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing your %s.",AB_HEALTH)
+				client_print(id, print_chat, "[RPG MOD] You have mastered already '%s'.", SkillsInfo[ key ][ _Name ])
+
+			if (stats_points[id] > 0)
+				RPGSkill(id);
 		}
-		case 1:
-		{
-			if(stats_points[id]>0)
-			{
-				if(stats_armor_set[id]<AB_ARMOR_MAX)
-				{
-					if (stats_increment[id] + stats_armor_set[id] >= AB_ARMOR_MAX)
-						stats_increment[id] = AB_ARMOR_MAX - stats_armor_set[id];
-					stats_points[id]-= stats_increment[id];
-					stats_armor_set[id] += stats_increment[id];
-					client_print(id,print_chat,"[RPG MOD] You spent %i Skillpoints to enhance your %s to Level %i!", stats_increment[id], AB_ARMOR, stats_armor_set[id]);
-					SaveLevel(id, auth)
-					if(is_user_alive(id))
-						set_user_armor(id,get_user_armor(id)+stats_increment[id]);
-				}
-				else
-					client_print(id,print_chat,"[RPG MOD] You have mastered your %s already.",AB_ARMOR)
-				if(stats_points[id]>0)
-					RPGSkill(id)
-			}
-			else
-				client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing your %s.",AB_ARMOR)
-		}
-		case 2:
-		{
-			if(stats_points[id]>0)
-			{
-				if(stats_health[id]<AB_HEALTH_REGEN_MAX)
-				{
-					if (stats_increment[id] + stats_health[id] >= AB_HEALTH_REGEN_MAX)
-						stats_increment[id] = AB_HEALTH_REGEN_MAX - stats_health[id];
-					stats_points[id] -= stats_increment[id];
-					stats_health[id] += stats_increment[id];
-					SaveLevel(id, auth)
-					client_print(id,print_chat,"[RPG MOD] You spent %i Skillpoints to enhance your %s to Level %i!", stats_increment[id], AB_HEALTH_REGEN, stats_health[id])
-				}
-				else
-					client_print(id,print_chat,"[RPG MOD] You have mastered your %s already.",AB_HEALTH_REGEN)
-				if(stats_points[id]>0)
-					RPGSkill(id)
-			}
-			else
-				client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing your %s.",AB_HEALTH_REGEN)
-		}
-		case 3:
-		{
-			if(stats_points[id]>0)
-			{
-				if(stats_armor[id]<AB_ARMOR_REGEN_MAX)
-				{
-					if (stats_increment[id] + stats_armor[id] >= AB_ARMOR_REGEN_MAX)
-						stats_increment[id] = AB_ARMOR_REGEN_MAX - stats_armor[id];
-					stats_points[id] -= stats_increment[id];
-					stats_armor[id] += stats_increment[id];
-					SaveLevel(id, auth)
-					client_print(id,print_chat,"[RPG MOD] You spent %i Skillpoint to enhance your %s to Level %i!", stats_increment[id], AB_ARMOR_REGEN, stats_armor[id]);
-				}
-				else
-					client_print(id,print_chat,"[RPG MOD] You have mastered your %s already.",AB_ARMOR_REGEN)
-				if(stats_points[id]>0)
-					RPGSkill(id)
-			}
-			else
-				client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing your %s.",AB_ARMOR_REGEN)
-		}
-		case 4:
-		{
-			if(stats_points[id]>0)
-			{
-				if(stats_ammo[id]<AB_AMMO_MAX)
-				{
-					if (stats_increment[id] + stats_ammo[id] >= AB_AMMO_MAX)
-						stats_increment[id] = AB_AMMO_MAX - stats_ammo[id];
-					stats_points[id] -= stats_increment[id];
-					stats_ammo[id] += stats_increment[id];
-					SaveLevel(id, auth)
-					client_print(id,print_chat,"[RPG MOD] You spent %i Skillpoints to enhance your %s to Level %i!", stats_increment[id], AB_AMMO, stats_ammo[id]);
-				}
-				else
-					client_print(id,print_chat,"[RPG MOD] You have mastered your %s already.",AB_AMMO)
-				if(stats_points[id]>0)
-					RPGSkill(id)
-			}
-			else
-				client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing your %s.",AB_AMMO)
-		}
-		case 5:
-		{
-			if(stats_points[id]>0)
-			{
-				if(stats_doublejump[id]<AB_DOUBLEJUMP_MAX)
-				{
-					if (stats_increment[id] + stats_doublejump[id] >= AB_DOUBLEJUMP_MAX)
-						stats_increment[id] = AB_DOUBLEJUMP_MAX - stats_doublejump[id];
-					stats_points[id] -= stats_increment[id];
-					stats_doublejump[id] += stats_increment[id];
-					SaveLevel(id, auth)
-					client_print(id,print_chat,"[RPG MOD] You spent %i Skillpoints to enhance your %s to Level %i!", stats_increment[id], AB_DOUBLEJUMP, stats_doublejump[id]);
-				}
-				else
-					client_print(id,print_chat,"[RPG MOD] You have mastered your %s already.",AB_DOUBLEJUMP)
-				if(stats_points[id]>0)
-					RPGSkill(id)
-			}
-			else
-				client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing your %s.",AB_DOUBLEJUMP)
-		}
-		case 6:
-		{
-			if(stats_points[id]>0)
-			{
-				if(stats_randomweapon[id]<AB_WEAPON_MAX)
-				{
-					if (stats_increment[id] + stats_randomweapon[id] >= AB_WEAPON_MAX)
-						stats_increment[id] = AB_WEAPON_MAX - stats_randomweapon[id];
-					stats_points[id] -= stats_increment[id];
-					stats_randomweapon[id] += stats_increment[id];
-					SaveLevel(id, auth)
-					client_print(id,print_chat,"[RPG MOD] You spent %i Skillpoints to enhance your %s to Level %i!", stats_increment[id], AB_WEAPON, stats_randomweapon[id])
-				}
-				else
-					client_print(id,print_chat,"[RPG MOD] You have mastered your %s already.",AB_WEAPON)
-				if(stats_points[id]>0)
-					RPGSkill(id)
-			}
-			else
-				client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing your %s.",AB_WEAPON)
-		}
-		case 7:
-		{
-			if(stats_points[id]>0)
-			{
-				if(stats_auro[id]<AB_AURA_MAX)
-				{
-					if (stats_increment[id] + stats_auro[id] >= AB_AURA_MAX)
-						stats_increment[id] = AB_AURA_MAX - stats_auro[id];
-					stats_points[id] -= stats_increment[id];
-					stats_auro[id] += stats_increment[id];
-					SaveLevel(id, auth)
-					client_print(id,print_chat,"[RPG MOD] You spent %i Skillpoints to enhance your %s to Level %i!", stats_increment[id], AB_AURA, stats_auro[id])
-				}
-				else
-					client_print(id,print_chat,"[RPG MOD] You have mastered your %s already.",AB_AURA)
-				if(stats_points[id]>0)
-					RPGSkill(id)
-			}
-			else
-				client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing your %s.",AB_AURA)
-		}
-		case 8:
-		{
-			if(stats_points[id]>0)
-			{
-				if(stats_holyguard[id]<AB_HOLYGUARD_MAX)
-				{
-					if (stats_increment[id] + stats_holyguard[id] >= AB_HOLYGUARD_MAX)
-						stats_increment[id] = AB_HOLYGUARD_MAX - stats_holyguard[id];
-					stats_points[id] -= stats_increment[id];
-					stats_holyguard[id] += stats_increment[id];
-					SaveLevel(id, auth)
-					client_print(id,print_chat,"[RPG MOD] You spent %i Skillpoint to enhance your %s to Level %i!", stats_increment[id], AB_HOLYGUARD, stats_holyguard[id]);
-				}
-				else
-					client_print(id,print_chat,"[RPG MOD] You have mastered your %s already.",AB_HOLYGUARD)
-				if(stats_points[id]>0)
-					RPGSkill(id)
-			}
-			else
-				client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing your %s.",AB_HOLYGUARD)
-		}
-		case 9:
-		{
-		}
+		else
+			client_print(id,print_chat,"[RPG MOD] You need one Skillpoint for enhancing '%s'.", SkillsInfo[ key ][ _Name ])
 	}
 	return PLUGIN_HANDLED;
 }
@@ -1155,7 +1108,7 @@ public RPGSkillChoice( id, key )
 //	CheckIfBlacklisted()
 //------------------
 
-public CheckIfBlacklisted()
+public CheckIfBlacklisted(bool:IsCommand)
 {
 	new currentmap[33],
 		map_folder[33],
@@ -1207,14 +1160,14 @@ public CheckIfBlacklisted()
 	else if(glb_MapDefined_IsWildCard)
 		format(map_folder, 63, "%s/sc_rpg/maps/global_settings.cfg", GetconfigsDir);
 
-	BeginBlackListing_Map(map_folder);
+	BeginBlackListing_Map(map_folder, IsCommand);
 }
 
 //------------------
 //	BeginBlackListing_Map()
 //------------------
 
-public BeginBlackListing_Map(szFilename[])
+public BeginBlackListing_Map(szFilename[], bool:IsCommand)
 {
 	// If we don't have a wildcard or the actual map is not blacklisted.
 	if (equali(szFilename, ""))
@@ -1272,6 +1225,41 @@ public BeginBlackListing_Map(szFilename[])
 				glb_MapDefined_WepRandomizer = str_to_num(ValueID);
 		}
 		fclose(File);
+	}
+
+	if (IsCommand)
+	{
+		new players[32],
+			num,
+			i,
+			id;
+
+		get_players(players, num);
+
+		if (glb_MapDefined_SetEXPCap > 0)
+		{
+			for (i = 0; i<num; i++)
+			{
+				id = players[i];
+				if (is_user_connected(id))
+				{
+					glb_MapDefined_HasSetCap[id] = true;
+					if (stats_level[id] > 1)
+						stats_xp_cap[id] = floatround( 8.25 + stats_neededxp[id] + glb_MapDefined_SetEXPCap );
+					else
+						stats_xp_cap[id] = stats_neededxp[id] + glb_MapDefined_SetEXPCap;
+				}
+			}
+		}
+		else
+		{
+			for (i = 0; i<num; i++)
+			{
+				id = players[i];
+				if (is_user_connected(id))
+					glb_MapDefined_HasSetCap[id] = false;
+			}
+		}
 	}
 }
 
@@ -1426,9 +1414,9 @@ public ShowInfo(id)
 		if (stats_level[id] > 1)
 			stats_xp_cap[id] = floatround( 8.25 + stats_neededxp[id] + glb_MapDefined_SetEXPCap );
 		else
-			stats_xp_cap[id] = glb_MapDefined_SetEXPCap;
+			stats_xp_cap[id] = stats_neededxp[id] + glb_MapDefined_SetEXPCap;
 	}
-	
+
 	if (!HasSpawnedFirstTime[id])
 		HasSpawnedFirstTime[id] = true;
 
@@ -1729,7 +1717,7 @@ public ResetStats(id, FullReset)
 			if (stats_level[id] > 1)
 				stats_xp_cap[id] = floatround( 8.25 + stats_neededxp[id] + glb_MapDefined_SetEXPCap );
 			else
-				stats_xp_cap[id] = glb_MapDefined_SetEXPCap;
+				stats_xp_cap[id] = stats_neededxp[id] + glb_MapDefined_SetEXPCap;
 		}
 	}
 	else
@@ -1975,7 +1963,7 @@ public PluginThinkLoop()
 			{
 				lastfrags[id] = get_user_frags(id)
 				if (stats_level[id] < 800
-					&& PlayerNotReachedCap(id,false)
+					&& PlayerNotReachedCap(id)
 					&& !glb_MapDefined_IsBlacklisted)
 				{
 					CalculateEXP_Add(id);
@@ -3013,6 +3001,9 @@ public CalculateEXP_Add(id)
 	else if (stats_level[id] >= 100)
 		m_fgrb_vlues = m_fgrb_vlues + float(rndnum + rndnum_big - rndnum_medium);
 
+	// Calculate Temp EXP for the max cap
+	if (glb_MapDefined_SetEXPCap > 0 && stats_xp_temp[id] > stats_xp_cap[id])
+		stats_xp_temp[id] = floatround( m_fgrb_vlues + rndnum ) + stats_xp_bonus[id] + SetExtraBonus;
 	stats_xp[id] = floatround( m_fgrb_vlues + rndnum ) + stats_xp_bonus[id] + SetExtraBonus;
 }
 
@@ -3739,14 +3730,11 @@ stock rpg_get_health(id)
 //	PlayerNotReachedCap()
 //------------------
 
-PlayerNotReachedCap(id,bool:IsHud=true)
+PlayerNotReachedCap(id)
 {
-	if (glb_MapDefined_SetEXPCap <= 0) return true;
+	if (glb_MapDefined_SetEXPCap > 0) return false;
 	// Lets check if the temp is higher or equals to the cap.
-	if (stats_xp_temp[id] >= stats_xp_cap[id]) return false;
-	// Lets add some numbers into the temp value.
-	if (!IsHud)
-		stats_xp_temp[id] = stats_xp_temp[id] + stats_xp[id];
+	if (stats_xp_temp[id] > stats_xp_cap[id]) return false;
 	return true;
 }
 
