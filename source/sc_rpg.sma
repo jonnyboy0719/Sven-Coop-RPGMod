@@ -80,7 +80,7 @@
 // Plugin
 #define PLUGIN						"Sven Co-op RPG Mod"
 #define AUTHOR						"JonnyBoy0719"
-#define VERSION						"22.7"
+#define VERSION						"22.8"
 
 // Adverts
 #define AdvertSetup_Max				10
@@ -2571,19 +2571,39 @@ public ShowPlayerInfo()
 					{
 						if (PlayerNotReachedCap(i))
 						{
-							show_hudmessage(i,
-								"Exp.:   %i / %i  (+%i)^nLevel:   %i / 800^nRank:   %s^nMedals:   %i / 15^nHealth:   %i^nArmor:   %i^nPrestige:   %i / 10^nYour SteamID:   %s",
-								stats_xp[i],
-								stats_neededxp[i],
-								stats_neededxp[i] - stats_xp[i],
-								stats_level[i],
-								rank_name[i],
-								stats_medals[i],
-								get_user_health( i ),
-								get_user_armor( i ),
-								stats_prestige[i],
-								steamid
-							)
+							if (SetExtraBonus > 0)
+							{
+								show_hudmessage(i,
+									"Exp.:   %i / %i  (+%i)^nBonus Exp.:   +%i^nLevel:   %i / 800^nRank:   %s^nMedals:   %i / 15^nHealth:   %i^nArmor:   %i^nPrestige:   %i / 10^nYour SteamID:   %s",
+									stats_xp[i],
+									stats_neededxp[i],
+									stats_neededxp[i] - stats_xp[i],
+									SetExtraBonus,
+									stats_level[i],
+									rank_name[i],
+									stats_medals[i],
+									get_user_health( i ),
+									get_user_armor( i ),
+									stats_prestige[i],
+									steamid
+								)
+							}
+							else
+							{
+								show_hudmessage(i,
+									"Exp.:   %i / %i  (+%i)^nLevel:   %i / 800^nRank:   %s^nMedals:   %i / 15^nHealth:   %i^nArmor:   %i^nPrestige:   %i / 10^nYour SteamID:   %s",
+									stats_xp[i],
+									stats_neededxp[i],
+									stats_neededxp[i] - stats_xp[i],
+									stats_level[i],
+									rank_name[i],
+									stats_medals[i],
+									get_user_health( i ),
+									get_user_armor( i ),
+									stats_prestige[i],
+									steamid
+								)
+							}
 						}
 						else
 						{
@@ -3732,7 +3752,7 @@ stock rpg_get_health(id)
 
 PlayerNotReachedCap(id)
 {
-	if (glb_MapDefined_SetEXPCap > 0) return false;
+	if (!glb_MapDefined_HasSetCap[id]) return true;
 	// Lets check if the temp is higher or equals to the cap.
 	if (stats_xp_temp[id] > stats_xp_cap[id]) return false;
 	return true;
