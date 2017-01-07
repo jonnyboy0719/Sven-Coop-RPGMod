@@ -2,7 +2,6 @@
 // Modified by JonnyBoy0719
 
 const MaxClients = 33;
-const MaxSteamIdChars = 35;
 
 enum Status
 {
@@ -12,14 +11,14 @@ enum Status
 
 enum _:RewardsStruct
 {
-	_Name[ MaxClients ],
+	_Name[ 256 ],
 	_Description[ 256 ],
 	Array:_Data
 };
 
 enum _:RewardDataStruct
 {
-	_Save_Name[ MaxClients ],
+	_Save_Name[ 256 ],
 	_Max_Value
 };
 
@@ -60,9 +59,9 @@ public _RegisterReward( Plugin, Params )
 	get_string( 2, RewardData[ _Description ], charsmax( RewardData[ _Description ] ) );
 	
 	// SQL -- Register it to the system
-	new Name[ MaxSteamIdChars ],
-		Description[ MaxSteamIdChars ],
-		SaveName[ MaxClients ],
+	new Name[ 256 ],
+		Description[ 256 ],
+		SaveName[ 256 ],
 		Value[ 11 ],
 		table[32];
 	
@@ -130,11 +129,9 @@ public _ClientRewardCompleted( Plugin, Params )
 		// <player> has unlocked the challange "My first challenge!" - 5 out of 10 challenge(s) completed
 		
 		client_print( 0, print_chat, 
-			"%s has unlocked the challenge ^"%s^" - %i out of %i challenge(s) completed",
+			"%s has unlocked the challenge ^"%s^"",
 			ClientName,
-			RewardData[ _Name ],
-			RewardsCompleted[ Client ],
-			ArraySize( Reward )
+			RewardData[ _Name ]
 		);
 		
 		ExecuteForward( ForwardClientReward, ForwardRewardReturn, RewardPointer, Client );
@@ -211,8 +208,8 @@ public _GetRewardMaxValue( Plugin, Params )
 
 public _SetRewardData( Plugin, Params )
 {
-	new Key[ MaxSteamIdChars ],
-		SaveName[ MaxClients ],
+	new Key[ 256 ],
+		SaveName[ 256 ],
 		Value[ 11 ],
 		table[32];
 	
@@ -248,8 +245,8 @@ public _SetRewardData( Plugin, Params )
 
 public _GetRewardData( Plugin, Params )
 {
-	new Key[ MaxSteamIdChars ],
-		SaveName[ MaxClients ];
+	new Key[ 256 ],
+		SaveName[ 256 ];
 	
 	get_string( 1, Key, charsmax( Key ) );
 	get_string( 2, SaveName, charsmax( SaveName ) );
