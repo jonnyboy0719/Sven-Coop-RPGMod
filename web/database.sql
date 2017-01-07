@@ -59,10 +59,8 @@ CREATE TABLE IF NOT EXISTS `rpg_stats` (
   `points` int(11) DEFAULT '0',
   `medals` int(11) DEFAULT '0',
   `prestige` int(11) DEFAULT '0',
-  `date` int(11) DEFAULT '1112214021',
-  `online` varchar(50) DEFAULT 'false',
-  `country` varchar(50) DEFAULT NULL,
   `settings_sound` int(11) DEFAULT '1' COMMENT 'Sets the value if the player should hear the sounds playing.',
-  `gametime` int(11) DEFAULT '0',
+  `settings_plymodel` varchar(50) DEFAULT NULL,
+  `settings_plymodel_saved` varchar(50) DEFAULT NULL COMMENT 'The saved personal model, only gets applied by rpg_setmodel',
   PRIMARY KEY (`authid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;

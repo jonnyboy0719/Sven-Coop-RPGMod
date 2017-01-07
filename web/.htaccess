@@ -1,0 +1,30 @@
+#	Mod_security can interfere with uploading of content such as attachments. If you
+#	cannot attach files, remove the "#" from the lines below.
+#<IfModule mod_security.c>
+#	SecFilterEngine Off
+#	SecFilterScanPOST Off
+#</IfModule>
+
+ErrorDocument 401 default
+ErrorDocument 403 default
+ErrorDocument 404 default
+ErrorDocument 500 default
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+	RewriteEngine On
+	
+	# Profile
+	RewriteRule ^profile/([^/]*)$ /profile.php?steamid=$1 [L]
+	
+	# Stats
+	RewriteRule ^stats/$ /stats.php [L]
+	
+	# Rewards
+	RewriteRule ^rewards/$ /rewards.php [L]
+	
+	# index
+	RewriteRule ^info/$ /index.php [L]
+	
+</IfModule>

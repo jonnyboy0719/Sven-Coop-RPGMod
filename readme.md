@@ -108,4 +108,16 @@ or any SQL Manager that you have installed, into its query, and hit run. But mak
 Web GUI
 -----------
 
-The Web GUI is currently being developed.
+Make sure you install the web gui on your apache folder (you can find all files under `web/` folder) and not copying it to your actual server!  
+You also need to make sure to setup the configurations on the config.php.  
+
+**Note:**  
+Make sure you edit the web to your liking! Specially the prestige portions. This version on RPG Mod does not include the custom weapons, you have to create them yourself, if you want custom weapons.  
+Before editing, you need to have some prior knowledge of HTML and PHP.
+
+
+Web GUI Demo
+-----------
+
+If you want to see how the Web GUI looks like, you can do so by going to my SC RPG Stats page for my server!  
+Demo: [Click here!](http://theafterlife.eu/sc_rpg/)

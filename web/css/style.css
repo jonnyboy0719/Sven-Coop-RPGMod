@@ -1,0 +1,369 @@
+body {
+    color: #777;
+    font-family: 'Source Sans Pro', sans-serif;
+}
+
+.pure-img-responsive {
+    max-width: 100%;
+    height: auto;
+}
+
+/*
+Add transition to containers so they can push in and out.
+*/
+#layout,
+#menu,
+.menu-link {
+    -webkit-transition: all 0.2s ease-out;
+    -moz-transition: all 0.2s ease-out;
+    -ms-transition: all 0.2s ease-out;
+    -o-transition: all 0.2s ease-out;
+    transition: all 0.2s ease-out;
+}
+
+/*
+This is the parent `<div>` that contains the menu and the content area.
+*/
+#layout {
+    position: relative;
+    padding-left: 0;
+}
+    #layout.active {
+        position: relative;
+        left: 150px;
+    }
+        #layout.active #menu {
+            left: 150px;
+            width: 150px;
+        }
+
+        #layout.active .menu-link {
+            left: 150px;
+        }
+/*
+The content `<div>` is where all your content goes.
+*/
+.content {
+    margin: 0 auto;
+    padding: 0 2em;
+    max-width: 800px;
+    margin-bottom: 50px;
+    line-height: 1.6em;
+}
+
+.header {
+     max-width: 768px;
+     margin: 0 auto;
+     color: #333;
+     text-align: center;
+     padding: 1em;
+     border-bottom: 1px solid rgb(55,55,55);
+     font-family: "Raleway", "Helvetica Neue", Helvetica, Arial, sans-serif;
+     letter-spacing: 0.05em;
+ }
+    .header h1 {
+        margin: 0.2em 0;
+        font-size: 300%;
+        font-weight: 100;
+    }
+    .header h2 {
+        font-weight: 100;
+        font-size: 125%;
+        color: #666;
+        padding: 0;
+        margin: 0;
+        line-height: 1.5;
+        letter-spacing: -0.02em;
+    }
+    .header a {
+        text-decoration: none;
+        color: rgb(75, 75, 75);
+    }
+
+.content-subhead {
+    margin: 30px 0 20px 0;
+    font-weight: 300;
+    color: #888;
+    border-left: 2px solid #BDAC58;
+    padding-left: 0.5em;
+}
+
+.links a, .links a:hover, .links a:visited {
+   color: #3796E6;
+   text-decoration: none;
+}
+
+.content-subhead p {
+    font-size: 90%;
+}
+
+.content-container {
+    border-left: 2px solid #4BBBBF;
+    margin: 2em 0;
+    padding: 0.5em;
+}
+
+.content-container p {
+   font-size: 90%;
+}
+
+.content-container:nth-of-type(2n+2) {
+   border-left: 2px solid #3796E6;
+}
+
+.pure-paginator {
+   font-size: 95%;
+}
+
+/*
+The `#menu` `<div>` is the parent `<div>` that contains the `.pure-menu` that
+appears on the left side of the page.
+*/
+
+#menu {
+    margin-left: -150px; /* "#menu" width */
+    width: 150px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1000; /* so the menu or its navicon stays above all content */
+    background: #191818;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+    /*
+    All anchors inside the menu should be styled like this.
+    */
+    #menu a {
+        color: #999;
+        border: none;
+        padding: 0.6em 0 0.6em 0.6em;
+    }
+
+    /*
+    Remove all background/borders, since we are applying them to #menu.
+    */
+     #menu .pure-menu,
+     #menu .pure-menu ul {
+        border: none;
+        background: transparent;
+    }
+
+    /*
+    Add that light border to separate items into groups.
+    */
+    #menu .pure-menu ul,
+    #menu .pure-menu .menu-item-divided {
+        border-top: 1px solid #333;
+    }
+        /*
+        Change color of the anchor links on hover/focus.
+        */
+        #menu .pure-menu li a:hover,
+        #menu .pure-menu li a:focus {
+            background: #333;
+        }
+
+    /*
+    This styles the selected menu item `<li>`.
+    */
+    #menu .pure-menu-selected {
+        background: #E3281B;
+    }
+        /*
+        This styles a link within a selected menu item `<li>`.
+        */
+        #menu .pure-menu-selected a {
+            color: #fff;
+        }
+
+    /*
+    This styles the menu heading.
+    */
+    #menu .pure-menu-heading {
+        font-size: 125%;
+        font-weight: 300;
+        letter-spacing: 0.1em;
+        color: #fff;
+        margin: 0;
+    }
+
+/* -- Dynamic Button For Responsive Menu -------------------------------------*/
+
+/*
+The button to open/close the Menu is custom-made and not part of Pure. Here's
+how it works:
+*/
+
+/*
+`.menu-link` represents the responsive menu toggle that shows/hides on
+small screens.
+*/
+.menu-link {
+    position: fixed;
+    display: block; /* show this only on small screens */
+    top: 0;
+    left: 0; /* "#menu width" */
+    background: #000;
+    background: rgba(0,0,0,0.7);
+    font-size: 10px; /* change this value to increase/decrease button size */
+    z-index: 10;
+    width: 2em;
+    height: auto;
+    padding: 2.1em 1.6em;
+}
+
+    .menu-link:hover,
+    .menu-link:focus {
+        background: #000;
+    }
+
+    .menu-link span {
+        position: relative;
+        display: block;
+    }
+
+    .menu-link span,
+    .menu-link span:before,
+    .menu-link span:after {
+        background-color: #fff;
+        width: 100%;
+        height: 0.2em;
+    }
+
+        .menu-link span:before,
+        .menu-link span:after {
+            position: absolute;
+            margin-top: -0.6em;
+            content: " ";
+        }
+
+        .menu-link span:after {
+            margin-top: 0.6em;
+        }
+
+
+/* -- Responsive Styles (Media Queries) ------------------------------------- */
+
+/*
+Hides the menu at `48em`, but modify this based on your app's needs.
+*/
+@media (min-width: 48em) {
+
+    .header,
+    .content {
+        padding-left: 2em;
+        padding-right: 2em;
+    }
+
+    #layout {
+        padding-left: 150px; /* left col width "#menu" */
+        left: 0;
+    }
+    #menu {
+        left: 150px;
+    }
+
+    .menu-link {
+        position: fixed;
+        left: 150px;
+        display: none;
+    }
+
+    #layout.active .menu-link {
+        left: 150px;
+    }
+}
+
+/* IRCTube stuff */
+
+body {
+    min-width: 320px;
+    color: whitesmoke;
+    line-height: 1.6;
+	background: rgb(15,15,15);
+}
+
+h1, h2, h3, h4, h5, h6 {
+   font-weight: 700;
+   color: rgb(265, 75, 75);
+}
+h3 {
+   font-size: 1.3em;
+   margin: 0.1em;
+}
+h4 {
+   font-size: 1.12em;
+   margin: 0.1em;
+}
+
+@font-face {
+   font-family: 'icons';
+   src: url('../fonts/icons.eot');
+   src: url('../fonts/icons.eot?#iefix') format('embedded-opentype'),
+        url('../fonts/icons.svg#icons') format('svg'),
+        url('../fonts/icons.woff') format('woff'),
+        url('../fonts/icons.ttf') format('truetype');
+   font-weight: normal;
+   font-style: normal;
+}
+
+.mono {
+   font-family: 'Source Code Pro', Consolas, Courier, monospace;
+   color: #333;
+   font-size: 95%;
+}
+
+.footer {
+   border-left: 2px solid #F6D432;
+   padding-left: 0.5em;
+   margin-top: 2.5em;
+}
+
+.content-container a, .content-container a:visited, .content-container a:hover
+{
+   color: #3796E6;
+   text-decoration: none;
+}
+
+.content-container:nth-of-type(2n+1) a {
+   color: #4BBBBF !important;
+}
+
+.smaller {
+   font-size: 75%;
+}
+
+.smaller a {
+   font-weight: normal !important;
+}
+
+.bigger {
+   font-size: 130%;
+}
+
+.bold {
+   font-weight: 700;
+}
+
+iframe {
+   border: none;
+}
+
+.plus {
+   color: rgb(28, 184, 65);
+}
+
+.minus {
+   color: rgb(202, 60, 60);
+}
+
+.lshad {
+   text-shadow: 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+i {
+   opacity: 0.7;
+   filter: alpha(opacity=70); /* For IE8 and earlier */
+}
