@@ -72,7 +72,7 @@ Now open `configs/sql.cfg` and add the new commands:
 `rpg_pass			""`  
 `rpg_type			"mysql"`  
 `rpg_dbname			"my_database"`  
-`rpg_table			"sc_rpg"`  
+`rpg_table			"rpg_stats"`  
 `rpg_table_api_web		"rpg_rewards_web"`  
 `rpg_table_api			"rpg_rewards"`  
 `rpg_rank_table			"sc_rpg_rank"`  
