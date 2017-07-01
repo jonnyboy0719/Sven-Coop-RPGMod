@@ -16,27 +16,36 @@ $mysql_table = "rpg_stats";			// table
 
 $site_name = "SC RPG Mod";
 $site_name_short = "SC RPG";
-$site_friendlyurl = false;		// Only toggle this on if you have Mod-Rewerite module installed!
-$site_baseurl = "localhost/sc_stats";
-$site_steamkey = "946923BA2F3BE49EF80D667C4C993412";
-$allowlogin = false;			// Can the user login with their steam account? (NOT YET IMPLEMENTED)
+$site_steamkey = "";
 
-if ($site_friendlyurl)
+$bgdrop = "";
+switch( rand(0, 3) )
 {
-	$link_rewards = "rewards";
-	$link_stats = "stats";
-	$link_login = "login";
-	$link_profile = "profile";
-	$link_prestige = "prestige";
-	$link_gifts = "gifts";
+	default:
+	case 0:
+		$bgdrop = "bg_drop1";
+	break;
+	
+	case 1:
+		$bgdrop = "bg_drop2";
+	break;
+	
+	case 2:
+		$bgdrop = "bg_drop3";
+	break;
+	
+	case 3:
+		$bgdrop = "bg_drop4";
+	break;
 }
-else
-{
-	$link_rewards = "rewards.php";
-	$link_stats = "stats.php";
-	$link_login = "login.php";
-	$link_profile = "profile.php";
-	$link_prestige = "prestige.php";
-	$link_gifts = "gifts.php";
-}
-?>
+
+// Stat values (MUST be the same as sc_rpg.sma!)
+$stat_Health			= 400;
+$stat_HealthR			= 50;
+$stat_Armor				= 210;
+$stat_ArmorR			= 55;
+$stat_Ammo				= 30;
+$stat_Jumps				= 5;
+$stat_Gifts				= 10;
+$stat_Aura				= 20;
+$stat_HGuard			= 20;

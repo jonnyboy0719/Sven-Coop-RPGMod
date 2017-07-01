@@ -9,6 +9,8 @@ $con = mysqli_connect($mysql_host, $mysql_name, $mysql_pass, $mysql_db);
 if (mysqli_connect_errno())
 	echo "Failed to connect to MySQLi: " . mysqli_connect_error();
 
+$result_gifts = mysqli_query($con, "SELECT * FROM rpg_rewards_weapons ORDER BY rarity desc");
+
 $menu_position = 0.2;
 
 ?>
@@ -16,211 +18,169 @@ $menu_position = 0.2;
 <html>
 	<head>
 		<meta charset="UTF-8">
-		<title>Gift From The Gods :: <?php echo $site_name; ?></title>
-		<meta name="description" content="<?php echo $site_name; ?> & Player Statistics">
-		<link rel="stylesheet" href="css/pure-min.css">
-		<link rel="stylesheet" href="css/style.css">
+		<title>Gifts From the Gods :: <?php echo $site_name; ?></title>
+		<meta name="description" content="<?php echo $site_name; ?> :: Gifts From the Gods">
+
+		<!-- CSS -->
+		<link rel="stylesheet" href="css/bootstrap.css">
+		<link rel="stylesheet" href="css/bootstrap_extensions.css">
+		<link rel="stylesheet" href="css/bootstrap_responsive.css">
+		
+		<link rel="stylesheet" href="css/main.css">
+		<link rel="stylesheet" href="css/stats.css">
 		<link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Raleway:300%7cSource+Sans+Pro:400,700%7cSource+Code+Pro&amp;subset=latin,latin-ext">
+		<link rel="stylesheet" type="text/css" href="css/jquery.dataTables.css">
+
+		<!-- JS -->
+		<script type="text/javascript" language="javascript" src="js/jquery.js"></script>
+		<script type="text/javascript" language="javascript" src="js/jquery.dataTables.js"></script>
+		<link rel="stylesheet" type="text/css" href="css/jquery.dataTables.css">
+		<script type="text/javascript" src="js/progressbar.js"></script>
+		<script src="js/stellar.js"></script>
+		<script>
+		$(function(){
+			$.stellar({
+				horizontalScrolling: false,
+				verticalOffset: 40
+			});
+			$('a[href*=#]:not([href=#])').click(function() {
+				if (location.pathname.replace(/^\//,'') == this.pathname.replace(/^\//,'') && location.hostname == this.hostname) {
+
+					var target = $(this.hash);
+					target = target.length ? target : $('[name=' + this.hash.slice(1) +']');
+
+					if (target.length) {
+					$('html,body').animate( {
+						scrollTop: target.offset().top
+						}, 1000);
+						return false;
+					}
+				}
+			});
+		});
+		</script>
+
+		<script type="text/javascript" language="javascript" class="init">
+			$(document).ready(function() {
+				$('#gifts_table').dataTable( {
+					"paging":   true,
+					"ordering": true,
+					"info":     true,
+					"lengthMenu": [[10, 25, 35, 45], [10, 25, 35, 45]],
+					stateSave: true,
+					"language": {
+						"lengthMenu": "Display _MENU_ weapons per page",
+						"zeroRecords": "Nothing found - sorry",
+						"info": "Showing page _PAGE_ of _PAGES_",
+						"infoEmpty": "No weapons available",
+						"infoFiltered": "(filtered from _MAX_ total weapons)"
+					}
+				} );
+			} );
+		</script>
 	</head>
 	<body>
-		<div id="layout">
-			<a href="#menu" id="menuLink" class="menu-link"><span></span></a>
-			<div id="menu">
-				<div class="pure-menu pure-menu-open">
-					<a class="pure-menu-heading" href="//theafterlife.eu/"><?php echo $site_name_short; ?></a>
-					<ul>
-						<?php include('lib/menu.php'); ?>
-					</ul>
-				</div>
-			</div>
-			<div id="main">
-				<div class="header">
-					<h1><?php echo $site_name; ?></h1>
-				</div>
-				<div class="content">
-					<div class="content-container">
-						<h3>The Gifts From The Gods</h3>
-						<p>The higher your level is, the more, and better weapons will you obtain!</p>
-						<table class="pure-table pure-table-horizontal pure-table-striped">
-							<thead>
-								<tr>
-									<th>Level</th>
-									<th>Reward</th>
-									<th>Rarity</th>
-								</tr>
-							</thead>
-							<tbody>
-								<tr>
-									<td>1</td>
-									<td>Pipe Wrench</td>
-									<td><span style="color:green">70%</span></td>
-								</tr>
-								<tr>
-									<td>1</td>
-									<td>Glock</td>
-									<td><span style="color:green">70%</span></td>
-								</tr>
-								<tr>
-									<td>1</td>
-									<td>357</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>2</td>
-									<td>Uzi</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>2</td>
-									<td>Desert Eagle</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>3</td>
-									<td>MP5</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>3</td>
-									<td>Crossbow</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>3</td>
-									<td>Tommy Gun</td>
-									<td><span style="color:green">75%</span></td>
-								</tr>
-								<tr>
-									<td>4</td>
-									<td>Shotgun</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>4</td>
-									<td>M16</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>5</td>
-									<td>Hand Grenades</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>5</td>
-									<td>Tripmines</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>5</td>
-									<td>Akimbo Uzi</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>5</td>
-									<td>PPSH</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>6</td>
-									<td>Hornet Gun</td>
-									<td><span style="color:green">65%</span></td>
-								</tr>
-								<tr>
-									<td>6</td>
-									<td>Some Suicidal Aliens</td>
-									<td><span style="color:darkorange">50%</span></td>
-								</tr>
-								<tr>
-									<td>7</td>
-									<td>Satchel Charges</td>
-									<td><span style="color:darkorange">50%</span></td>
-								</tr>
-								<tr>
-									<td>7</td>
-									<td>Egon</td>
-									<td><span style="color:darkorange">45%</span></td>
-								</tr>
-								<tr>
-									<td>7</td>
-									<td>Rocket Launcher</td>
-									<td><span style="color:darkorange">45%</span></td>
-								</tr>
-								<tr>
-									<td>7</td>
-									<td>BAR</td>
-									<td><span style="color:green">70%</span></td>
-								</tr>
-								<tr>
-									<td>8</td>
-									<td>M249</td>
-									<td><span style="color:darkorange">40%</span></td>
-								</tr>
-								<tr>
-									<td>8</td>
-									<td>Garand</td>
-									<td><span style="color:green">60%</span></td>
-								</tr>
-								<tr>
-									<td>8</td>
-									<td>Gauss Rifle</td>
-									<td><span style="color:red">35%</span></td>
-								</tr>
-								<tr>
-									<td>9</td>
-									<td>Spore Launcher</td>
-									<td><span style="color:red">25%</span></td>
-								</tr>
-								<tr>
-									<td>9</td>
-									<td>Displacer</td>
-									<td><span style="color:red">25%</span></td>
-								</tr>
-								<tr>
-									<td>10</td>
-									<td>Sniper Rifle</td>
-									<td><span style="color:red">20%</span></td>
-								</tr>
-								<tr>
-									<td>10</td>
-									<td>Grenade Launcher</td>
-									<td><span style="color:red">15%</span></td>
-								</tr>
-								<tr>
-									<td>10</td>
-									<td>Scientist Rocket Shotgun</td>
-									<td><span style="color:red">15%</span></td>
-								</tr>
-								<tr>
-									<td>10</td>
-									<td>Scientist Rocket Launcher</td>
-									<td><span style="color:red">15%</span></td>
-								</tr>
-								<tr>
-									<td>10</td>
-									<td>Bio Rifle</td>
-									<td><span style="color:red">10%</span></td>
-								</tr>
-								<tr>
-									<td>10</td>
-									<td>Gloun Gun</td>
-									<td><span style="color:red">10%</span></td>
-								</tr>
-								<tr>
-									<td>10</td>
-									<td>Redeemer</td>
-									<td><span style="color:red">2%</span></td>
-								</tr>
-								<tr>
-									<td>10</td>
-									<td>Thunderbolt</td>
-									<td><span style="color:red">1%</span></td>
-								</tr>
-							</tbody>
-						</table>
-					</div>
-					<?php include('lib/footer.php'); ?>
-				</div>
+		<div class="menu">
+			<div class="left nav">
+				<?php include('lib/menu.php'); ?>
 			</div>
 		</div>
+		<header class="node <?php echo $bgdrop; ?>" data-stellar-background-ratio="0.2" ></header>
+		<div class="content">
+			<div class="body">
+				<div class="bs-callout bs-callout-info">
+					<h4>Information</h4>
+					<p>The higher your level is, the more, and better weapons will you obtain!</p>
+				</div>
+				<table id="gifts_table" class="stat-table table table-striped table-bordered table-hover">
+					<thead>
+						<tr>
+							<th>Level</th>
+							<th>Reward</th>
+							<th>Type</th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php
+						while($row = mysqli_fetch_array($result_gifts))
+						{
+						?>
+						<tr>
+							<td>
+								<?php echo $row['lvl']; ?>
+							</td>
+							<td>
+								<?php echo $row['name']; ?>
+							</td>
+							<td>
+								<?php
+									$result = "";
+									
+									switch ( $row['rarity'] )
+									{
+										case 0:
+											$result = '<span style="color:whitesmoke">Common</span>';
+										break;
+										
+										case 1:
+											$result = '<span style="color:green">Un-Common</span>';
+										break;
+										
+										case 2:
+											$result = '<span style="color:orange">Rare</span>';
+										break;
+										
+										case 3:
+											$result = '<span style="color:purple">Super Rare</span>';
+										break;
+										
+										case 4:
+											$result = '<span style="color:red">Legendary</span>';
+										break;
+										
+										case 5:
+											$result = '<span style="color:cyan">Mythical</span>';
+										break;
+										
+										default:
+											$result = '<span style="color:whitesmoke">Unknown Rarity</span>';
+										break;
+										
+									}
+									
+									echo $result;
+								?>
+							</td>
+						</tr>
+						<?php
+						}
+					?>
+					</tbody>
+				</table>
+				<div style="height: 200px;"></div>
+			</div>
+
+			<!-- Clear all floats -->
+			<div class="clear_both"></div>
+
+		</div>
+
+		<!-- Clear all floats -->
+		<div class="clear_both"></div>
+
+		<?php include('lib/footer.php'); ?>
+
+		<!-- JS, loads after the content etc... -->
+		<script src="js/profile.js"></script>
+		<script src="js/blurify.js"></script>
+		<script>
+			(function () {
+				blurify({
+					images: document.querySelectorAll('.node'),
+					blur: 6,
+					mode: 'auto',
+				});
+			})();
+		</script>
 	</body>
 </html>

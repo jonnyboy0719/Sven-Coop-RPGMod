@@ -1,0 +1,70 @@
+.stats-base {
+	font-family: Arial,Helvetica,Verdana,sans-serif;
+	padding-left: 15px;
+	margin-top: 15px;
+}
+
+.stats-progress-text {
+	float: right;
+	width: 100px;
+	position: relative;
+	bottom: 7px;
+}
+
+.stats-progress-bar {
+	width: 500px;
+	height: 14px;
+	margin: 0px;
+	padding: 0px;
+	background-color: rgb(8, 8, 8);
+}
+
+.stats-img img {
+	width: 64px;
+	height: 64px;
+	float: left;
+	margin-right: 9px;
+	margin-top: 2px;
+	border-radius: 2px 2px 2px 2px;
+}
+
+.stats-desc-base {
+	float: left;
+	position: relative;
+	width: 657px;
+	height: 66px;
+}
+
+.stats-desc {
+	position: absolute;
+	top: 7px;
+	left: 6px;
+	right: 6px;
+	width: 630px;
+}
+
+.stats-desc h3 {
+	font-weight: bold;
+	font-size: 15px;
+	font-variant: small-caps;
+	color: rgb(225, 225, 225);
+	margin: 0;
+}
+
+.stats-desc h4 {
+	position: absolute;
+	right: 0px;
+	top: 0px;
+    font-weight: bold;
+    font-size: 12px;
+    color: rgb(137, 137, 137);
+	margin: 0;
+}
+
+
+.stats-desc h5 {
+    font-weight: normal;
+    font-size: 12px;
+    color: rgb(137, 137, 137);
+	margin: 0;
+}

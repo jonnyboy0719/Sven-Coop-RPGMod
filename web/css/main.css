@@ -1,0 +1,301 @@
+/**************************
+	Reset
+**************************/
+* {
+	margin: 0;
+	padding: 0;
+}
+
+html, body, div, span, applet, object, iframe, h1, h2, h3, h4, h5, h6, p,
+blockquote, pre, a, abbr, acronym, address, big, cite, code, del, dfn, em,
+img, ins, kbd, q, s, samp, small, strike, strong, tt, var, b, u, i, center,
+dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody,
+tfoot, thead, tr, th, td, article, aside, canvas, details, embed, figure, figcaption,
+footer, header, hgroup, menu, nav, output, ruby, section, summary, time, mark, audio, video {
+	margin: 0px;
+	padding: 0px;
+	border: 0px none;
+	vertical-align: baseline;
+}
+
+/**************************
+	Float Cleaner
+**************************/
+.clear_left { clear: left; }
+.clear_right { clear: right; }
+.clear_both { clear: both; }
+
+/**************************
+	HTML
+**************************/
+html {
+	overflow-wrap: normal;
+	overflow-x: -moz-hidden-unscrollable;
+	overflow-x: unscrollable;
+}
+
+/**************************
+	Body
+**************************/
+body {
+    color: whitesmoke;
+    font-family: 'Source Sans Pro', sans-serif;
+	background: rgb(15,15,15);
+	line-height: 1.6;
+	min-height: 1200px;
+}
+
+/**************************
+	Header -- Global
+**************************/
+header {
+	background: rgb(5,5,5);
+	min-height: 200px;
+}
+
+/**************************
+	Footer -- Global
+**************************/
+footer {
+	text-align: center;
+
+	font-size: 14px;
+	font-family: Ebrima, "Oswald", sans-serif;
+	text-transform: uppercase;
+
+	padding-top: 20px;
+	padding-bottom: 20px;
+	position: relative;
+	background: rgb(10,10,10);
+
+	z-index: 3;
+}
+
+
+/**************************
+	Content -- Global
+**************************/
+.content {
+	min-height: 600px;
+}
+
+/**************************
+	Content -- Body
+**************************/
+
+.content .body {
+	margin: 0 auto;
+	padding: 25px 0 25px 0;
+	width: 85%;
+}
+
+/**************************
+	Content -- Profile
+**************************/
+.content .header {
+	position: relative;
+	top: -80px;
+	left: 150px;
+	max-height: 250px;
+}
+
+.content .header .avatar {
+	display: block;
+	margin-right: 15px;
+	border-radius: 50%;
+	float: left;
+}
+
+.content .details {
+	float: left;
+	left: 200px;
+	position: inherit;
+}
+
+.content .details .name {
+	position: inherit;
+	top: -100px;
+	font-size: 35px;
+}
+
+.content .details .steamid {
+	position: inherit;
+	top: -95px;
+	font-size: 20px;
+	margin-left: 15px;
+	float: left;
+}
+
+.content .details .pos {
+	position: inherit;
+	top: -100px;
+	font-size: 25px;
+	width: 45px;
+	height: 45px;
+	float: left;
+}
+
+/**************************
+	Profile -- Rankbg
+**************************/
+.content .details #rank-1 { background-image: url('../img/rank/01.png'); }
+.content .details #rank-2 { background-image: url('../img/rank/02.png'); }
+.content .details #rank-3 { background-image: url('../img/rank/03.png'); }
+.content .details #rank-def { background-image: url('../img/rank/def.png'); }
+
+/**************************
+	Nodes
+**************************/
+.node {
+	background-attachment: fixed;
+	background-position: 50% 0;
+	background-size: 100%;
+	background-repeat: no-repeat;
+	position: relative;
+
+	width: 100%;
+	height: 550px;
+}
+
+.bg_drop1 { background-image: url('../img/drops/backdrop1.jpg'); }
+.bg_drop2 { background-image: url('../img/drops/backdrop2.jpg'); }
+.bg_drop3 { background-image: url('../img/drops/backdrop3.jpg'); }
+.bg_drop4 { background-image: url('../img/drops/backdrop4.jpg'); }
+
+/**************************
+	Links
+**************************/
+a, a:visited {
+	color: #3796E6;
+	text-decoration: none;
+	transition:all 0.3s linear;
+	-moz-transition:all 0.3s linear;
+	-webkit-transition:all 0.3s linear;
+	-o-transition:all 0.3s linear;
+}
+
+a:hover, a:active, a:hover {
+	color: darkred;
+	text-decoration: none;
+	transition:all 0.3s linear;
+	-moz-transition:all 0.3s linear;
+	-webkit-transition:all 0.3s linear;
+	-o-transition:all 0.3s linear;
+}
+
+/**************************
+	Navigation Bar
+**************************/
+.menu {
+	background: rgba(0,0,0,.5);
+	z-index: 1;
+	position: sticky;
+	height: 45px;
+	width: 100%;
+	float: left;
+}
+
+.right {
+	float: right;
+	right: 0px;
+	padding-top: 12px;
+	font-size: 24px;
+	font-family: Ebrima, "Oswald", sans-serif;
+	text-transform: uppercase;
+}
+
+.left {
+	float: left;
+	left: 350px;
+	padding-top: 2px;
+	font-size: 24px;
+	font-family: Ebrima, "Oswald", sans-serif;
+	text-transform: uppercase;
+	position: inherit;
+}
+
+.nav a, .nav a:visited {
+	color: white;
+	margin-left: 15px;
+	margin-right: 5px;
+}
+
+.nav a:hover, .nav a:active, .nav a:hover {
+	color: darkred;
+	text-decoration: none;
+	transition:all 0.3s linear;
+	-moz-transition:all 0.3s linear;
+	-webkit-transition:all 0.3s linear;
+	-o-transition:all 0.3s linear;
+}
+
+.nav-right a {
+	margin-right: 8px;
+	margin-left: 9px;
+}
+
+/**************************
+	Profile Tabs
+**************************/
+.profile_tabs {
+	font-family: "Motiva Sans Light","Motiva Sans",arial,tahoma,sans-serif;
+	font-weight: normal;
+	font-size: 18px;
+	color: #67C1F5;
+	float: right;
+	position: relative;
+	right: 20px;
+	z-index: 5;
+	top: -270px;
+}
+
+#info_tab {
+	padding-right: 10px;
+	line-height: 20px;
+	margin-right: 10px;
+	float: left;
+	cursor: pointer;
+	padding-left: 10px;
+	text-decoration: none;
+	transition:all 0.3s linear;
+	-moz-transition:all 0.3s linear;
+	-webkit-transition:all 0.3s linear;
+	-o-transition:all 0.3s linear;
+}
+
+#info_tab:hover {
+	color: darkred;
+	text-decoration: none;
+	transition:all 0.3s linear;
+	-moz-transition:all 0.3s linear;
+	-webkit-transition:all 0.3s linear;
+	-o-transition:all 0.3s linear;
+}
+
+/**************************
+	Profile InfoDiv
+**************************/
+.InfoDiv {
+	position: relative;
+	top: -120px;
+	float: left;
+	margin-left: 100px;
+	margin-top: 25px;
+}
+
+/**************************
+	Tables -- Stats
+**************************/
+.stat-table thead {
+	background: rgba(20,20,20,.9);
+	color: white;
+}
+.odd { background: rgba(25,25,25,.8); height: 35px; }
+.even { background: rgba(15,15,15,.8); height: 35px; }
+
+/**************************
+	Index Boxes
+**************************/
+.ibox h3 {
+	color: brown;
+}
