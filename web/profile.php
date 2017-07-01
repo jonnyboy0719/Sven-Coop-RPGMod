@@ -65,10 +65,7 @@ while($users = mysqli_fetch_array($result_users))
 		$getrank_cnt = false;
 }
 
-if ($allowlogin)
-	$menu_position = 4;
-else
-	$menu_position = 2;
+$menu_position = 2;
 
 ?>
 <!DOCTYPE html>
