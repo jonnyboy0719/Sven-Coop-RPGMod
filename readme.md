@@ -120,4 +120,4 @@ Web GUI Demo
 -----------
 
 If you want to see how the Web GUI looks like, you can do so by going to my SC RPG Stats page for my server!  
-Demo: [Click here!](http://theafterlife.eu/sc_rpg/)
+Demo: [Click here!](http://theafterlife.dk/sc_rpg/)
