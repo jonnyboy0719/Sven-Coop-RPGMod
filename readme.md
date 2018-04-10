@@ -3,6 +3,11 @@
 This plugin is a replacement for the old, crappy, SCXPM mod for Sven Co-op. SCRPG Mod is more balanced and more Challenging than SCXPM, and all the skills has been re-created from scratch with a more clean code.
 
 
+No longer in active development
+-----------
+After the release of `23.0`, SC-RPG is no longer in active (public) development. I have stopped supporting the public revision, due I have heavily modified and changed how the plugin works and function (Latest private revision is on 50.x). I sadly cannot release that version because it now contains code I have created that cannot be released for public use.
+
+
 Credits
 -----------
 
